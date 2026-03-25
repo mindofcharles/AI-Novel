@@ -1,0 +1,6 @@
+google-genai
+faiss-cpu
+numpy
+pydantic
+sqlalchemy
+openai

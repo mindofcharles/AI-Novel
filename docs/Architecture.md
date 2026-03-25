@@ -1,0 +1,202 @@
+# AI Novel Project Architecture
+
+## Overview
+
+This project facilitates the generation of long-form novels through a multi-agent collaborative system (Multi-Agent System), leveraging a structured memory approach to ensure narrative consistency and logical integrity over extended contexts.
+
+## Core Concepts
+
+### 0. Unified Discussion Logging
+
+Discussion artifacts for `world`, `plot`, `guide`, and `chapter_text` now follow one schema and title convention:
+
+* Title: `[phase_type] chapter={n|NA} round={r|NA} role={role}`
+* Fields: `log_id`, `timestamp`, `phase_type`, `chapter_num`, `round`, `role`, `model`, `input_summary`, `output_summary`, `decision`, `needs_revision`, `artifact_paths`
+* Index: every entry is also appended to `process/discussions/discussion_index.jsonl`
+
+### 1. Three-Tier Fact System
+
+To maintain continuity, narrative facts are categorized into three levels of "hardness," managed by a hybrid database system (SQLite + FAISS).
+
+#### Tier 1: Core Constraints (Structural)
+
+* **Definition:** Immutable or highly resistant facts that define the world and characters.
+* **Storage:** SQLite (`characters`, `relationships`, `world_rules` tables).
+* **Enforcement:** Strict filtering. The Writer Agent is explicitly forbidden from contradicting these.
+* **Updates:** Supports character trait evolution and status updates.
+
+#### Tier 2: Major Milestones (Semi-Structural)
+
+* **Definition:** Significant events that alter the state of the world or characters.
+* **Storage:** SQLite (`timeline` table).
+* **Features:** Tracks `related_entities` and `location` for targeted retrieval.
+* **Enforcement:** Retrieved based on timeline context to ensure cause-and-effect consistency.
+
+#### Tier 3: Narrative Details (Atmospheric)
+
+* **Definition:** Ephemeral or granular details that provide color but don't break the plot if slightly altered (though consistency is preferred).
+* **Storage:** FAISS Vector Index + SQLite Metadata (`vector_metadata` table).
+* **Enforcement:** Semantic Retrieval with optional Metadata Filtering (e.g., "visuals" at "Tavern").
+
+## Data Schema
+
+### Schema Versioning
+
+* SQLite schema upgrades are now forward-only migrations managed by `MemoryManager`.
+* Version state is stored in `schema_meta` (`key='schema_version'`).
+* Databases without `schema_meta` are treated as unsupported legacy state and must be re-initialized.
+* Fact tables include audit metadata fields: `source_commit_id`, `version`, `is_deleted`, `intent_tag`.
+
+### SQLite Tables
+
+**`characters`**
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `id` | INTEGER PK | Unique ID |
+| `name` | TEXT | Character Name |
+| `core_traits` | JSON | MBTI, Trauma, Fears, etc. |
+| `status` | TEXT | 'alive', 'dead', 'missing' |
+| `attributes` | JSON | Flexible attributes |
+| `last_updated` | TIMESTAMP | Last modification time |
+
+**`timeline`** (Enhanced)
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `event_name` | TEXT | Short title |
+| `description` | TEXT | Full description |
+| `timestamp_str` | TEXT | In-universe time |
+| `impact_level` | INT | Significance (1-5) |
+| `related_entities` | JSON List | e.g. ["Alice", "Bob"] |
+| `location` | TEXT | Where it happened |
+| `source_commit_id` | TEXT | Originating commit batch |
+| `version` | INT | Logical row version |
+| `is_deleted` | INT | Tombstone marker (0/1) |
+| `intent_tag` | TEXT | Retrieval/update intent label |
+
+**`vector_metadata`** (Linked to FAISS)
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| `faiss_id` | INT PK | Index in FAISS array |
+| `content` | TEXT | The raw text chunk |
+| `metadata` | JSON | Context tags (location, type) |
+| `source_commit_id` | TEXT | Originating commit batch |
+| `version` | INT | Logical row version |
+| `is_deleted` | INT | Tombstone marker (0/1) |
+| `intent_tag` | TEXT | Retrieval/update intent label |
+
+## Agent Workflow (Closed Loop)
+
+The system operates on a continuous Plan-Write-Scan loop where the output of one chapter directly updates the context for the next.
+
+0. **Pre-Planning Stage (Plot Construction)**
+   * **Input:** Approved World Bible.
+   * **Action:** Planner produces a high-level plot outline, then a detailed plot outline.
+   * **Discussion:** Critic reviews each outline; Planner revises for bounded rounds.
+   * **Output:** `frame/plot/plot_outline.md` + `frame/plot/detailed_plot_outline.md` and discussion logs.
+
+1. **Planner Agent (Narrative Planner)**
+   * **Input:**
+     * Static: World Bible + Plot Outline + Detailed Plot Outline.
+     * **Dynamic (New):** Queries the Memory Database for "Active Characters" (Status, Traits) and "Recent History" (Last 5 Timeline Events).
+     * **Semantic Context (New):** Uses intent-gated vector retrieval to inject relevant Tier-3 details from FAISS.
+     * Context: Previous Chapter Summary.
+   * **Output:** A structured "Writing Contract" (Chapter Outline).
+   * **Discussion Gate (New):**
+     * Critic reviews each chapter guide.
+     * Planner revises for bounded rounds before Writer starts.
+
+2. **Writer Agent (Novelist)**
+   * **Input:** The Writing Contract.
+   * **Action:** Generates the prose, focusing on "Show, Don't Tell" and strictly following the scene breakdown.
+   * **Output:** Markdown-formatted Chapter Text.
+
+3. **Critic Agent (Chapter Review)**
+   * **Input:** Writing Contract + generated Chapter Text.
+   * **Action:** Produces contradiction scan + patch guidance.
+   * **Output:** Structured review text (`NEEDS_REVISION`, rationale, patch guidance).
+   * **Discussion Artifact (New):** Chapter-level text discussion is persisted under `process/discussions/chapter_{n}_text_discussion.md`.
+
+4. **Scanner Agent (Archivist)**
+   * **Input:** The generated Chapter Text.
+   * **Action:** Analyzes the text to extract new facts.
+   * **Output:** **Structured JSON** containing:
+     * `new_characters` / `updated_characters`
+     * `new_rules` (World building updates)
+     * `relationships` (Character dynamics)
+     * `events` (Timeline additions)
+     * `details` (Semantic chunks for Vector Store)
+   * **Validation Gate (New):**
+     * Payload must pass schema checks before DB mutation.
+     * Invalid payloads are persisted for debugging and rejected from commit.
+
+5. **Memory Manager (System)**
+   * **Action:** Parses the Scanner's JSON.
+   * **Updates:**
+     * **SQLite:** Inserts/Updates rows in `characters` and `timeline`.
+     * **FAISS:** Embeds semantic details and adds them to the vector index.
+   * **Audit Layer (New):**
+     * Writes row-level revisions into `fact_revisions`.
+     * Records chapter batch state in `chapter_commits`.
+     * Queues unresolved hard contradictions in `conflict_queue`.
+
+6. **Loop**
+   * The next Planner iteration queries the updated database, ensuring the story reacts to previous events (e.g., if a character died in Chapter 1, the Planner for Chapter 2 knows they are dead).
+   * Chapter summaries are persisted in `chapter_{n}_facts_summary.md` and reused when resuming auto mode from later chapters.
+   * Auto mode is interruption-resumable by artifact detection:
+     * Runtime artifacts under `novel/` are validated before resume (`.json`, `.jsonl`, markdown/text files, and chapter commit linkage).
+     * `chapter_{n}_facts.json` must remain valid JSON and pass schema checks.
+     * `discussion_index.jsonl` is line-validated as JSONL.
+     * A chapter is considered complete only when chapter text, facts summary, facts JSON, and latest `scan_chapter` commit payload/status are all valid.
+     * If any check fails, chapter-scoped artifacts are discarded and the chapter is regenerated from planning.
+
+## Conflict Visibility in Planning
+
+Planner context now includes a compact list of pending conflicts (`conflict_queue`) so generated contracts can avoid compounding unresolved contradictions.
+
+## Retrieval Pipeline (Intent -> SQLite -> FAISS -> Alignment)
+
+Planning/writing retrieval now follows an explicit chain:
+
+1. Query intent classification (`task_type`, strictness, required tiers, semantic gate).
+2. SQLite prefilter (characters/rules/events/conflicts by intent scope).
+3. FAISS semantic retrieval (Tier-3 candidates).
+4. Cross-tier alignment (drop/penalize semantic hits conflicting with hard facts, e.g., dead-character active details under strict mode).
+5. Context package assembly for prompts (policy + compact summaries + aligned Tier-3 details).
+
+## Conflict Resolution Path
+
+Pending conflicts are manually resolvable through CLI actions (`keep_existing` / `apply_incoming` for supported types), and resolution state is stored back in `conflict_queue` with notes and timestamps.
+
+## Conflict Levels (Blocking vs Non-Blocking)
+
+* `conflict_queue` now stores `blocking_level` (`BLOCKING` or `NON_BLOCKING`).
+* `conflict_queue` also stores triage metadata: `priority` and `suggested_action`.
+* Workflow gating behavior is controlled by `BLOCKING_CONFLICT_MODE`:
+  * `auto_keep_existing`: auto-resolve `BLOCKING` conflicts with `keep_existing` before gate checks.
+  * `manual_block`: never auto-resolve; gate blocks while any `BLOCKING` conflict remains.
+* Example:
+  * `timeline_dead_character_involved` -> `BLOCKING`
+  * `relationship_type_change` -> `NON_BLOCKING`
+
+## Commit Replay Recovery
+
+* `chapter_commits` now tracks `error_message`, `replay_count`, and `last_replayed_at`.
+* Failed scan commits can be replayed from persisted `payload_json` through CLI (`--replay-commit`).
+* Replay runs the same DB mutation path (`apply_fact_payload`) under a fresh transaction and promotes commit status back to `COMPLETED` on success.
+* FAISS can be deterministically rebuilt from `vector_metadata` (`--rebuild-vectors`) to recover DB/vector alignment.
+
+## Initialization Seeding
+
+After World Bible + Plot discussions finish, the system asks the Scanner role to extract initial structured facts (JSON schema identical to chapter scanning) and seeds SQLite/FAISS before Chapter 1 planning. This reduces empty-context starts and improves early chapter continuity.
+
+## Customization
+
+### Prompts
+
+System prompts for each agent are stored in `src/prompts/` in consolidated Markdown files.
+Naming convention: `{language_code}.md` (e.g., `zh.md`, `en.md`).
+Each agent's prompt is defined under a second-level heading (e.g., `## Architect`).
+You can modify these files to adjust the behavior or style of specific agents without changing the code.
