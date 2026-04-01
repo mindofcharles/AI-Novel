@@ -2,12 +2,12 @@
 
 A multi-agent system designed to write long-form coherent novels by maintaining a structured, multi-tier memory of the world, characters, and plot.
 
-Many thanks to GPT for their help!
+Many thanks to Gemini and GPT for their help!
 
 > [!NOTE]
 > The project is currently in a very early stage.
 
-[👉 Project Architecture](docs/Architecture.md), [👉 Document](docs/)
+[👉 Project Architecture](docs/Architecture.md), [👉 Flowchart](docs/Flowchart.md), [👉 Document](docs/)
 
 ## Key Features
 
