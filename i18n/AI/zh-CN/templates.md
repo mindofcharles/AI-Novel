@@ -1,6 +1,4 @@
-# Prompts ZH
-
-## Architect
+## architect
 
 （你正在参与一个写小说的工作）
 
@@ -17,7 +15,7 @@
 
 请保持结构化但简洁。我们稍后会进行扩展。
 
-## Critic
+## critic
 
 （你正在参与一个写小说的工作）
 
@@ -25,7 +23,7 @@
 
 提供建设性的反馈和具体的改进建议。
 
-## Planner
+## planner
 
 （你正在参与一个写小说的工作）
 
@@ -40,13 +38,13 @@
 - 人物情感弧线
 - 节奏指导
 
-## Writer
+## writer
 
 （你正在参与一个写小说的工作）
 
 你是小说正文的编写者。需严格根据提供的‘写作契约’撰写章节正文。
 
-专注于‘展示而非讲述’（Show, Don't Tell），感官细节和深度人物视角。
+专注于‘展示而非讲述’（Show, Don't Tell），感官细节 and 深度人物视角。
 
 小说默认使用第三视角讲述。
 
@@ -54,7 +52,7 @@
 
 不要输出评论，只输出故事文本。
 
-## Scanner
+## scanner
 
 （你正在参与一个写小说的工作）
 
@@ -71,3 +69,77 @@ JSON 结构如下：
   "events": [ { "event_name": "...", "description": "...", "timestamp_str": "...", "impact_level": 1-5, "related_entities": ["Name1"], "location": "..." } ],
   "details": [ { "content": "...", "metadata": { "location": "...", "type": "visual/lore" } } ]
 }
+
+## prompt.world_bible_draft_critique
+
+以下是世界设定初稿：
+
+{world_bible}
+
+请给出具体、可执行的改进建议。
+
+## prompt.world_bible_revise
+
+请基于该审稿意见修订世界设定，保持结构清晰、内容精简并可持续扩展。
+
+当前设定：
+{world_bible}
+
+审稿意见：
+{critique}
+
+## prompt.plot_outline_draft
+
+请基于以下世界设定输出《小说情节构思》。
+要求：强调大阶段剧情推进、核心矛盾演进、关键人物关系变化，不要拆成逐章任务。
+
+世界设定：
+{world_bible}
+
+## prompt.plot_outline_revise
+
+请根据审稿意见修订《小说情节构思》，保持结构清晰且可持续扩展。
+
+当前稿：
+{current}
+
+审稿意见：
+{critique}
+
+## prompt.detailed_plot_outline_draft
+
+请基于世界设定与《小说情节构思》输出《小说的具体情节构思》。
+要求：给出中短期剧情推进、关键场景簇、阶段目标与风险，仍不要写成逐章最终稿。
+
+世界设定：
+{world_bible}
+
+小说情节构思：
+{plot_outline}
+
+## prompt.detailed_plot_outline_revise
+
+请根据审稿意见修订《小说的具体情节构思》，并保持与世界设定和上一层情节构思一致。
+
+当前稿：
+{current}
+
+审稿意见：
+{critique}
+
+## prompt.planner_critique
+
+请审查该写作契约的可执行性、人物行为一致性、冲突推进与节奏控制，并给出可执行修订建议。
+
+写作契约：
+{guide}
+
+## prompt.planner_revise
+
+请根据审稿意见修订该写作契约，保持结构清晰、可执行、并与既有设定一致。
+
+当前写作契约：
+{current_guide}
+
+审稿意见：
+{critique}

@@ -13,12 +13,15 @@ This document only contains In Progress, Known Issues, and Future Plans.
 7. Add chapter-scope cleanup manifest so interrupted generations can purge generated artifacts and commit traces with stronger determinism.
 8. Continue module split of monolithic orchestration/storage files (`workflow.py`, `memory.py`) into stable component layers while preserving behavior (phase 1 done: resume/io/language + schema/conflict_commit extracted; next: tier operation mixins).
 9. Harden FAISS reliability paths: batch-safe vector reset persistence, index-load failure metadata reconciliation, and rebuild skipped-row audit retention.
+10. **Prompt Fragmentation & Scattered Language Logic:** Move all hardcoded prompts and language-specific strings into a centralized i18n system.
 
 ## Known Issues
 
 1. FAISS rollback still depends on in-memory index cloning; for very large indices this may be memory-heavy.
 2. Conflict diagnostics now include diff paths and reason labels, but root-cause graphing is still basic.
 3. Language guard now has confidence scoring, but still uses rewrite fallback as the final correction path.
+4. **Heuristic Conflict Detection Limitations:** Current分词/词频 overlap score may miss logical/causal contradictions.
+5. **Embedding Model Dependency:** Vector store doesn't currently verify if the embedding model has changed since initialization.
 
 ## Future Plans
 

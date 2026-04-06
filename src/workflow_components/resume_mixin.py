@@ -8,6 +8,8 @@ from typing import Dict, List, Optional, Set, Tuple
 import config
 
 
+from workflow_components.resources import get_resource
+
 class WorkflowResumeMixin:
     def _load_previous_summary(self, chapter_num: int) -> Optional[str]:
         summary_path = self._facts_summary_path(chapter_num)
@@ -22,26 +24,13 @@ class WorkflowResumeMixin:
         try:
             with open(json_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            lines = (
-                [f"第 {chapter_num} 章摘要："]
-                if config.LANGUAGE == "Chinese"
-                else [f"Summary for Chapter {chapter_num}:"]
-            )
-            labels = (
-                [
-                    ("new_characters", "新角色"),
-                    ("updated_characters", "角色更新"),
-                    ("new_rules", "新规则"),
-                    ("events", "事件"),
-                ]
-                if config.LANGUAGE == "Chinese"
-                else [
-                    ("new_characters", "New Character"),
-                    ("updated_characters", "Updated Character"),
-                    ("new_rules", "New Rule"),
-                    ("events", "Event"),
-                ]
-            )
+            lines = [get_resource("label.chapter_summary_prefix", chapter_num=chapter_num)]
+            labels = [
+                ("new_characters", get_resource("label.new_character")),
+                ("updated_characters", get_resource("label.updated_character")),
+                ("new_rules", get_resource("label.new_rule")),
+                ("events", get_resource("label.event")),
+            ]
             for key, label in labels:
                 for item in data.get(key, []):
                     name = item.get("name") or item.get("content") or item.get("event_name")

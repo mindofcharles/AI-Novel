@@ -1,6 +1,4 @@
-# Prompts ZH
-
-## Architect
+## architect
 
 (You are working on a novel writing project)
 
@@ -17,7 +15,7 @@ Including but not limited to:
 
 Please keep it structured but concise. We will expand on this later.
 
-## Critic
+## critic
 
 (You are working on a novel writing project)
 
@@ -25,9 +23,9 @@ You are responsible for reviewing the provided World Bible, checking for logical
 
 Provide constructive feedback and specific suggestions for improvement.
 
-## Planner
+## planner
 
-(You are working on a novel writing project)
+(You are working on a novel working project)
 
 You are the narrative planner. Create a detailed 'writing contract' (step-by-step outline) for the requested chapters.
 
@@ -40,7 +38,7 @@ This includes, but is not limited to:
 - Character emotional arcs
 - Pace guidance
 
-## Writer
+## writer
 
 (You are working on a novel writing project)
 
@@ -54,7 +52,7 @@ The novel is in plain text format by default.
 
 Do not output comments; only output the story text.
 
-## Scanner
+## scanner
 
 (You are working on a novel writing project)
 
@@ -71,3 +69,77 @@ The JSON structure is as follows:
   "events": [ { "event_name": "...", "description": "...", "timestamp_str": "...", "impact_level": 1-5, "related_entities": ["Name1"], "location": "..." } ],
   "details": [ { "content": "...", "metadata": { "location": "...", "type": "visual/lore" } } ]
 }
+
+## prompt.world_bible_draft_critique
+
+Here is the draft World Bible:
+
+{world_bible}
+
+Review and provide concrete improvement suggestions.
+
+## prompt.world_bible_revise
+
+Revise the World Bible based on this critique while keeping it compact and extensible.
+
+Current Draft:
+{world_bible}
+
+Critique:
+{critique}
+
+## prompt.plot_outline_draft
+
+Based on the following world bible, produce a 'Novel Plot Outline'.
+Requirements: focus on major arc progression, core conflict evolution, and key relationship shifts; do not split chapter by chapter.
+
+World Bible:
+{world_bible}
+
+## prompt.plot_outline_revise
+
+Revise the Novel Plot Outline based on the critique while keeping it structured and extensible.
+
+Current Draft:
+{current}
+
+Critique:
+{critique}
+
+## prompt.detailed_plot_outline_draft
+
+Based on the world bible and Novel Plot Outline, produce a 'Detailed Plot Outline'.
+Requirements: provide near/mid-term plot progression, key scene clusters, stage goals, and risks; still do not turn this into final chapter-by-chapter prose.
+
+World Bible:
+{world_bible}
+
+Novel Plot Outline:
+{plot_outline}
+
+## prompt.detailed_plot_outline_revise
+
+Revise the Detailed Plot Outline based on critique, and keep it aligned with both the world bible and the high-level plot outline.
+
+Current Draft:
+{current}
+
+Critique:
+{critique}
+
+## prompt.planner_critique
+
+Review this writing contract for executability, character consistency, conflict progression, and pacing. Provide concrete revision guidance.
+
+Writing Contract:
+{guide}
+
+## prompt.planner_revise
+
+Revise this writing contract based on the critique. Keep it structured, executable, and consistent with established context.
+
+Current Writing Contract:
+{current_guide}
+
+Critique:
+{critique}

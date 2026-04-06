@@ -2,10 +2,8 @@ import json
 import re
 from typing import Dict, List, Optional
 
-
 def contains_cjk(text: str) -> bool:
     return bool(re.search(r"[\u4e00-\u9fff]", text or ""))
-
 
 def language_confidence(text: str) -> Dict[str, float]:
     sample = text or ""
@@ -28,7 +26,6 @@ def language_confidence(text: str) -> Dict[str, float]:
         "latin_ratio": latin_ratio,
     }
 
-
 def needs_revision(review_text: str) -> bool:
     if not review_text:
         return False
@@ -39,7 +36,6 @@ def needs_revision(review_text: str) -> bool:
     if not m:
         return False
     return m.group(1).lower() == "yes"
-
 
 def extract_json_payload(text: str, logger=None) -> Optional[Dict]:
     raw = text.strip()
@@ -89,7 +85,6 @@ def extract_json_payload(text: str, logger=None) -> Optional[Dict]:
         logger.error("Failed to decode JSON from Scanner.")
         logger.debug(f"Raw text: {raw}")
     return None
-
 
 def validate_fact_payload(data: Dict) -> List[str]:
     errors: List[str] = []

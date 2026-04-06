@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 import config
 from memory import MemoryManager
 
+from workflow_components.resources import get_resource
 
 class StoryStateManager:
     """
@@ -24,39 +25,28 @@ class StoryStateManager:
         intent: Dict[str, object],
         hits: List[Dict],
     ) -> str:
-        lines = (
-            ["相关三级细节（语义检索）："]
-            if config.LANGUAGE == "Chinese"
-            else ["Relevant Tier-3 Details (Semantic Retrieval):"]
-        )
+        lines = [get_resource("ui.semantic_header")]
         lines.append(
-            f"- 检索意图: {intent['mode']} | {intent['rationale']}"
-            if config.LANGUAGE == "Chinese"
-            else f"- Retrieval Intent: {intent['mode']} | {intent['rationale']}"
+            get_resource("ui.semantic_retrieval_intent", mode=intent['mode'], rationale=intent['rationale'])
         )
         focus_entities = intent.get("focus_entities", []) or []
         focus_locations = intent.get("focus_locations", []) or []
         if focus_entities:
             lines.append(
-                f"- 关注角色: {', '.join(focus_entities)}"
-                if config.LANGUAGE == "Chinese"
-                else f"- Focus Entities: {', '.join(focus_entities)}"
+                get_resource("ui.semantic_focus_entities", entities=', '.join(focus_entities))
             )
         if focus_locations:
             lines.append(
-                f"- 关注地点: {', '.join(focus_locations)}"
-                if config.LANGUAGE == "Chinese"
-                else f"- Focus Locations: {', '.join(focus_locations)}"
+                get_resource("ui.semantic_focus_locations", locations=', '.join(focus_locations))
             )
         for hit in hits:
             meta = hit.get("metadata") or {}
             location = meta.get("location", "-")
             detail_type = meta.get("type", "-")
             content = hit.get("content", "")
-            if config.LANGUAGE == "Chinese":
-                lines.append(f"- [{detail_type}] {content}（地点：{location}）")
-            else:
-                lines.append(f"- [{detail_type}] {content} (Location: {location})")
+            lines.append(
+                get_resource("ui.semantic_item", type=detail_type, content=content, location=location)
+            )
         return "\n".join(lines) + "\n"
 
     @staticmethod
@@ -122,15 +112,10 @@ class StoryStateManager:
             should_semantic = True
         mode = "continuity_guard" if has_conflict else "continuity_build"
         strict_mode = has_conflict or task_type in {"scanner", "review"}
-        rationale = (
-            "存在待处理冲突，优先检索冲突相关上下文。"
-            if has_conflict and config.LANGUAGE == "Chinese"
-            else "Use conflict-aware retrieval to avoid amplifying unresolved contradictions."
-            if has_conflict
-            else "按角色/事件连续性检索三级细节。"
-            if config.LANGUAGE == "Chinese"
-            else "Retrieve Tier-3 details for chapter continuity by entity/event context."
-        )
+        
+        rationale_key = "prompt.intent_rationale_conflict" if has_conflict else "prompt.intent_rationale_continuity"
+        rationale = get_resource(rationale_key)
+
         return {
             "task_type": task_type,
             "mode": mode,
@@ -317,15 +302,9 @@ class StoryStateManager:
             intent.get("focus_locations", []) or [],
         )
         top_hits = ranked_hits[: config.TIER_3_SEARCH_LIMIT]
-        semantic_summary = (
-            "（跳过语义检索：意图判定为无需检索）\n"
-            if config.LANGUAGE == "Chinese"
-            else "(Semantic retrieval skipped by intent gate)\n"
-        )
+        semantic_summary = get_resource("ui.semantic_skipped")
         if intent.get("should_semantic"):
-            semantic_summary = (
-                "（无相关三级细节）\n" if config.LANGUAGE == "Chinese" else "(No relevant Tier-3 details)\n"
-            )
+            semantic_summary = get_resource("ui.semantic_no_hits")
             if top_hits:
                 semantic_summary = self._format_semantic_lines(intent, top_hits)
         return {
@@ -367,13 +346,9 @@ class StoryStateManager:
             strict_mode=bool(intent.get("strict_mode")),
         )
         if not intent["should_semantic"]:
-            return (
-                "（跳过语义检索：意图判定为无需检索）\n"
-                if config.LANGUAGE == "Chinese"
-                else "(Semantic retrieval skipped by intent gate)\n"
-            )
+            return get_resource("ui.semantic_skipped")
         if not aligned_hits:
-            return "（无相关三级细节）\n" if config.LANGUAGE == "Chinese" else "(No relevant Tier-3 details)\n"
+            return get_resource("ui.semantic_no_hits")
         ranked = self.rerank_semantic_hits(
             aligned_hits,
             intent.get("focus_entities", []) or [],
@@ -401,9 +376,7 @@ class StoryStateManager:
                 chapter_num=chapter_num,
             )
             if summary_lines is not None:
-                summary_lines.append(
-                    f"新角色: {char.get('name')}" if config.LANGUAGE == "Chinese" else f"New Character: {char.get('name')}"
-                )
+                summary_lines.append(get_resource("label.new_character") + f": {char.get('name')}")
 
         for char in data.get("updated_characters", []):
             self.memory.upsert_character(
@@ -415,11 +388,7 @@ class StoryStateManager:
                 chapter_num=chapter_num,
             )
             if summary_lines is not None:
-                summary_lines.append(
-                    f"角色更新: {char.get('name')}"
-                    if config.LANGUAGE == "Chinese"
-                    else f"Updated Character: {char.get('name')}"
-                )
+                summary_lines.append(get_resource("label.updated_character") + f": {char.get('name')}")
 
         for rule in data.get("new_rules", []):
             self.memory.add_rule(
@@ -432,9 +401,7 @@ class StoryStateManager:
                 intent_tag=intent_tag,
             )
             if summary_lines is not None:
-                summary_lines.append(
-                    f"新规则: {rule.get('content')}" if config.LANGUAGE == "Chinese" else f"New Rule: {rule.get('content')}"
-                )
+                summary_lines.append(get_resource("label.new_rule") + f": {rule.get('content')}")
 
         for rel in data.get("relationships", []):
             self.memory.add_relationship(
@@ -447,9 +414,7 @@ class StoryStateManager:
             )
             if summary_lines is not None:
                 summary_lines.append(
-                    f"关系: {rel.get('source')} <-> {rel.get('target')}"
-                    if config.LANGUAGE == "Chinese"
-                    else f"Relationship: {rel.get('source')} <-> {rel.get('target')}"
+                    get_resource("label.relationship") + f": {rel.get('source')} <-> {rel.get('target')}"
                 )
 
         for ev in data.get("events", []):
@@ -466,9 +431,7 @@ class StoryStateManager:
                 intent_tag=intent_tag,
             )
             if summary_lines is not None:
-                summary_lines.append(
-                    f"事件: {ev.get('event_name')}" if config.LANGUAGE == "Chinese" else f"Event: {ev.get('event_name')}"
-                )
+                summary_lines.append(get_resource("label.event") + f": {ev.get('event_name')}")
 
         for det in data.get("details", []):
             content = det.get("content")
@@ -488,32 +451,26 @@ class StoryStateManager:
         conflicts_after = self.memory.get_pending_conflict_count()
         new_conflicts = max(0, conflicts_after - conflicts_before)
         if summary_lines is not None and new_conflicts > 0:
-            summary_lines.append(
-                f"冲突待处理: {new_conflicts}" if config.LANGUAGE == "Chinese" else f"Conflicts Pending: {new_conflicts}"
-            )
+            summary_lines.append(get_resource("label.conflicts_pending", count=new_conflicts))
         return new_conflicts
 
     def sync_compact_archives(self) -> Dict[str, str]:
         chars = self.memory.get_all_characters()
-        char_lines = ["# 人物档案（精简）", ""] if config.LANGUAGE == "Chinese" else ["# Character Archive (Compact)", ""]
+        char_lines = [get_resource("archive.char_header"), ""]
         if not chars:
-            char_lines.append("- 暂无人物记录。" if config.LANGUAGE == "Chinese" else "- No characters recorded yet.")
+            char_lines.append(get_resource("archive.char_no_records"))
         else:
             for name, _, status in chars:
-                char_lines.append(
-                    f"- {name}（状态：{status}）" if config.LANGUAGE == "Chinese" else f"- {name} (status: {status})"
-                )
+                char_lines.append("- " + name + get_resource("ui.status_label", status=status))
 
         rules = self.memory.get_rules_by_category()
-        rule_lines = ["# 世界规则（精简）", ""] if config.LANGUAGE == "Chinese" else ["# World Rules (Compact)", ""]
+        rule_lines = [get_resource("archive.rule_header"), ""]
         if not rules:
-            rule_lines.append("- 暂无规则记录。" if config.LANGUAGE == "Chinese" else "- No rules recorded yet.")
+            rule_lines.append(get_resource("archive.rule_no_records"))
         else:
             for category, content, strictness in rules:
                 rule_lines.append(
-                    f"- [{category}] {content}（严格度：{strictness}）"
-                    if config.LANGUAGE == "Chinese"
-                    else f"- [{category}] {content} (strictness: {strictness})"
+                    get_resource("ui.rule_item_no_newline", category=category, content=content, strictness=strictness)
                 )
         return {
             "characters_compact.md": "\n".join(char_lines),

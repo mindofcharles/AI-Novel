@@ -1,8 +1,6 @@
 import os
 
-
 ROLE_NAMES = ("ARCHITECT", "PLANNER", "WRITER", "CRITIC", "SCANNER")
-
 
 def _env_str(name: str, default: str) -> str:
     value = os.getenv(name)
@@ -11,14 +9,12 @@ def _env_str(name: str, default: str) -> str:
     value = value.strip()
     return value if value else default
 
-
 def _env_int(name: str, default: int) -> int:
     raw = _env_str(name, str(default))
     try:
         return int(raw)
     except ValueError:
         return default
-
 
 def _env_float(name: str, default: float) -> float:
     raw = _env_str(name, str(default))
@@ -87,7 +83,7 @@ NOVEL_TITLE = _env_str("NOVEL_TITLE", "Untitled Novel")
 OUTPUT_DIR = _env_str("OUTPUT_DIR", "novel/main_text")
 FRAME_DIR = _env_str("FRAME_DIR", "novel/frame")
 PROCESS_DIR = _env_str("PROCESS_DIR", "novel/process")
-LANGUAGE = _env_str("LANGUAGE", "Chinese")  # "English" or "Chinese"
+LANGUAGE = _env_str("LANGUAGE", "English")  # "English" or "Chinese"
 
 # =============================
 # Retrieval / Constraint Controls

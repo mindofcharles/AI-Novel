@@ -15,7 +15,6 @@ if ROOT_DIR not in sys.path:
 
 from workflow import WorkflowManager
 
-
 class ProjectLogicSplitInitStartTests(unittest.TestCase):
     def setUp(self):
         self.old_cwd = os.getcwd()

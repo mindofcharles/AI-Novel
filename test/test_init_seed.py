@@ -18,7 +18,6 @@ import config
 from memory import MemoryManager
 from workflow import WorkflowManager
 
-
 class _StubClient:
     def __init__(self, responses):
         self._responses = list(responses)
@@ -27,7 +26,6 @@ class _StubClient:
         if not self._responses:
             raise RuntimeError("No stub response left")
         return self._responses.pop(0)
-
 
 class InitSeedingTests(unittest.TestCase):
     def setUp(self):
@@ -108,7 +106,6 @@ class InitSeedingTests(unittest.TestCase):
         self.assertGreaterEqual(len(self.memory.get_rules_by_category()), 1)
         self.assertGreaterEqual(len(self.memory.get_events(limit=10)), 1)
         self.assertTrue(os.path.exists(os.path.join(wf.facts_dir, "world_init_facts.json")))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,10 +16,8 @@ except ImportError:
 
 import config
 
-
 class LLMClientError(RuntimeError):
     """Raised when generation client calls fail."""
-
 
 class LLMClient:
     def __init__(

@@ -15,7 +15,6 @@ from memory import MemoryManager
 from state_manager import StoryStateManager
 from workflow import WorkflowManager
 
-
 class RelationshipSystemTests(unittest.TestCase):
     def setUp(self):
         self.db_path = os.path.join(ROOT_DIR, "novel", "process", "verify_facts.db")
@@ -40,7 +39,6 @@ class RelationshipSystemTests(unittest.TestCase):
         rels_updated = self.mm.get_relationships("Romeo")
         self.assertTrue(any(r[1] == "Juliet" and r[2] == "lovers" for r in rels_updated))
         self.assertEqual(self.mm.get_pending_conflict_count(), 1)
-
 
 class PipelineIntegrationTests(unittest.TestCase):
     class _EmbeddingStub:
@@ -121,7 +119,6 @@ class PipelineIntegrationTests(unittest.TestCase):
         ok = wf.replay_chapter_commit(commit_id)
         self.assertTrue(ok)
         self.assertIsNotNone(self.mm.get_character("ReplayNPC"))
-
 
 if __name__ == "__main__":
     unittest.main()

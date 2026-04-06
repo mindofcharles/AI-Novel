@@ -22,7 +22,6 @@ from workflow import WorkflowManager
 from llm_client import LLMClient, LLMClientError
 from workflow_components.parsing import language_confidence
 
-
 class MemoryMergeTests(unittest.TestCase):
     def setUp(self):
         self.db_path = os.path.join(ROOT_DIR, "novel", "process", "test_regressions.db")
@@ -441,7 +440,6 @@ class MemoryMergeTests(unittest.TestCase):
         self.assertIn('"species": "human"', row[4])
         self.assertGreaterEqual(self.mm.get_pending_conflict_count(), 1)
 
-
 class WorkflowJsonExtractionTests(unittest.TestCase):
     def setUp(self):
         self.wf = WorkflowManager.__new__(WorkflowManager)
@@ -502,7 +500,6 @@ extra tail"""
         self.assertGreater(mixed_score["chinese"], 0.0)
         self.assertGreater(mixed_score["english"], 0.0)
 
-
 class WorkflowGuideDiscussionTests(unittest.TestCase):
     class _StubClient:
         def __init__(self, outputs):
@@ -542,7 +539,6 @@ class WorkflowGuideDiscussionTests(unittest.TestCase):
             shutil.rmtree(tmpdir, ignore_errors=True)
 
         self.assertIn("Revised guide", revised)
-
 
 class WorkflowTextDiscussionTests(unittest.TestCase):
     class _StubClient:
@@ -601,7 +597,6 @@ class WorkflowTextDiscussionTests(unittest.TestCase):
         self.assertIn("decision", first)
         self.assertIn("artifact_paths", first)
         shutil.rmtree(tmpdir, ignore_errors=True)
-
 
 class AutoConflictResolverTests(unittest.TestCase):
     def setUp(self):
@@ -662,7 +657,6 @@ class AutoConflictResolverTests(unittest.TestCase):
         self.assertEqual(self.mm.get_pending_conflict_count(), 1)
         self.assertEqual(self.mm.get_pending_blocking_conflict_count(), 0)
 
-
 class ConflictGovernanceModeTests(unittest.TestCase):
     class _MemoryStub:
         def __init__(self, blocking_count: int = 0, total_count: int = 0):
@@ -713,7 +707,6 @@ class ConflictGovernanceModeTests(unittest.TestCase):
         finally:
             config.BLOCKING_CONFLICT_MODE = old_mode
 
-
 class LLMClientErrorFlowTests(unittest.TestCase):
     def test_generate_raises_structured_error_when_client_missing(self):
         client = LLMClient.__new__(LLMClient)
@@ -723,7 +716,6 @@ class LLMClientErrorFlowTests(unittest.TestCase):
         client.logger = logging.getLogger("llm-test")
         with self.assertRaises(LLMClientError):
             client.generate("hello")
-
 
 class QueryIntentPipelineTests(unittest.TestCase):
     class _EmbeddingStub:
@@ -783,7 +775,6 @@ class QueryIntentPipelineTests(unittest.TestCase):
             user_request="write chapter 1",
         )
         self.assertTrue(pkg["intent"]["should_semantic"])
-
 
 class CommitReplayRecoveryTests(unittest.TestCase):
     class _EmbeddingStub:
@@ -871,7 +862,6 @@ class CommitReplayRecoveryTests(unittest.TestCase):
         self.assertEqual(resolved, 1)
         self.assertEqual(self.mm.get_pending_conflict_count(blocking_level=self.mm.NON_BLOCKING), 0)
         self.assertEqual(self.mm.get_pending_conflict_count(blocking_level=self.mm.BLOCKING), 1)
-
 
 class ContinuousLoopResumeTests(unittest.TestCase):
     class _MemoryStub:
@@ -1057,7 +1047,6 @@ class ContinuousLoopResumeTests(unittest.TestCase):
         with mock.patch("workflow.time.sleep", return_value=None):
             with self.assertRaises(RuntimeError):
                 wf.run_continuous_loop(1, 1)
-
 
 if __name__ == "__main__":
     unittest.main()

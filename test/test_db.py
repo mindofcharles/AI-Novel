@@ -12,7 +12,6 @@ if ROOT_DIR not in sys.path:
 
 from memory import MemoryManager
 
-
 class DatabaseTierTests(unittest.TestCase):
     def setUp(self):
         self.db_path = os.path.join(ROOT_DIR, "novel", "process", "test_facts.db")

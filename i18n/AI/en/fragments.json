@@ -1,0 +1,20 @@
+{
+  "lang.confidence_chinese_min": 0.0,
+  "lang.confidence_english_min": 0.60,
+  "lang.confidence_chinese_max_for_english": 0.10,
+  "label.world_background": "World Context:",
+  "label.plot_outline": "Novel Plot Outline:",
+  "label.detailed_plot_outline": "Detailed Plot Outline:",
+  "label.prev_summary_prefix": "Previous Chapter Summary:",
+  "label.user_request_prefix": "User Request:",
+  "prompt.language_rule": "Use English only for all outputs. Do not mix in other languages.",
+  "prompt.architect_task": "Design the World Bible.",
+  "prompt.scanner_seed_task": "Extract initial facts using the scanner JSON schema for DB initialization. Output JSON only.",
+  "prompt.writer_task": "Write Chapter {chapter_num} now.",
+  "prompt.critic_review_task": "Review the chapter for contradictions against the writing contract and established facts.",
+  "prompt.critic_output_format": "Output strictly:\nNEEDS_REVISION: yes/no\nRATIONALE: ...\nPATCH_GUIDANCE: ...",
+  "prompt.writer_revise": "Revise the chapter based on critique. Output only the revised chapter text.",
+  "prompt.scanner_task": "Extract facts (JSON) now.",
+  "prompt.intent_rationale_conflict": "Use conflict-aware retrieval to avoid amplifying unresolved contradictions.",
+  "prompt.intent_rationale_continuity": "Retrieve Tier-3 details for chapter continuity by entity/event context."
+}

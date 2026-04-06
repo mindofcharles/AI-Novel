@@ -2,7 +2,6 @@ import os
 import time
 from typing import Optional
 
-
 class DiscussionLogger:
     def __init__(self, log_dir: str):
         self.log_dir = log_dir

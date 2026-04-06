@@ -14,10 +14,10 @@ from workflow_components.parsing import (
     validate_fact_payload,
 )
 from workflow_components.prompts import load_system_prompts
+from workflow_components.resources import get_resource
 from workflow_components.resume_mixin import WorkflowResumeMixin
 from workflow_components.io_mixin import WorkflowIOMixin
 from workflow_components.language_mixin import WorkflowLanguageMixin
-
 
 class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixin):
     def __init__(self):
@@ -337,11 +337,7 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
         )
 
         for i in range(max(0, rounds)):
-            critique_prompt = (
-                f"请审查以下内容的逻辑完整性、可执行性与冲突强度，并给出可执行修改建议：\n\n{outline}"
-                if config.LANGUAGE == "Chinese"
-                else f"Review the following outline for logic, execution clarity, and conflict intensity. Provide concrete revision suggestions:\n\n{outline}"
-            )
+            critique_prompt = get_resource("prompt.world_bible_draft_critique", world_bible=outline)
             critique_prompt += f"\n\n{self._language_rule()}"
             try:
                 critique = self.critic_client.generate(
@@ -423,18 +419,10 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
             self._save_file(filename, content, self.archives_dir)
 
     def _critic_review_chapter(self, chapter_num: int, guide_content: str, chapter_text: str, prompts: Dict[str, str]) -> str:
-        review_task = (
-            "请审查该章节是否与写作契约和既有事实冲突。"
-            if config.LANGUAGE == "Chinese"
-            else "Review the chapter for contradictions against the writing contract and established facts."
-        )
-        output_format = (
-            "请严格输出:\n是否需要修订: 是/否\n理由: ...\n修订建议: ..."
-            if config.LANGUAGE == "Chinese"
-            else "Output strictly:\nNEEDS_REVISION: yes/no\nRATIONALE: ...\nPATCH_GUIDANCE: ..."
-        )
-        contract_label = "写作契约" if config.LANGUAGE == "Chinese" else "Writing Contract"
-        chapter_label = "章节正文" if config.LANGUAGE == "Chinese" else "Chapter Text"
+        review_task = get_resource("prompt.critic_review_task")
+        output_format = get_resource("prompt.critic_output_format")
+        contract_label = get_resource("label.contract")
+        chapter_label = get_resource("label.chapter_text")
         critic_prompt = (
             f"{contract_label}:\n{guide_content}\n\n"
             f"{chapter_label}:\n{chapter_text}\n\n{review_task}\n{output_format}\n{self._language_rule()}"
@@ -472,12 +460,7 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
             artifact_paths=[self.get_guide_path(chapter_num)],
         )
         for i in range(rounds):
-            critique_prompt = (
-                "请审查该写作契约的可执行性、人物行为一致性、冲突推进与节奏控制，并给出可执行修订建议。"
-                if config.LANGUAGE == "Chinese"
-                else "Review this writing contract for executability, character consistency, conflict progression, and pacing. Provide concrete revision guidance."
-            )
-            critique_prompt += f"\n\n写作契约:\n{current_guide}" if config.LANGUAGE == "Chinese" else f"\n\nWriting Contract:\n{current_guide}"
+            critique_prompt = get_resource("prompt.planner_critique", guide=current_guide)
             critique_prompt += f"\n\n{self._language_rule()}"
             critique = self.critic_client.generate(
                 prompt=critique_prompt,
@@ -506,13 +489,8 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
                 artifact_paths=[self.get_guide_path(chapter_num)],
             )
 
-            revise_prompt = (
-                "请根据审稿意见修订该写作契约，保持结构清晰、可执行、并与既有设定一致。\n\n"
-                f"当前写作契约:\n{current_guide}\n\n审稿意见:\n{critique}\n\n{self._language_rule()}"
-                if config.LANGUAGE == "Chinese"
-                else "Revise this writing contract based on the critique. Keep it structured, executable, and consistent with established context.\n\n"
-                f"Current Writing Contract:\n{current_guide}\n\nCritique:\n{critique}\n\n{self._language_rule()}"
-            )
+            revise_prompt = get_resource("prompt.planner_revise", current_guide=current_guide, critique=critique)
+            revise_prompt += f"\n\n{self._language_rule()}"
             current_guide = self.planner_client.generate(
                 prompt=revise_prompt,
                 system_instruction=prompts["planner"],
@@ -549,8 +527,8 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
         self.logger.info(f"Starting new project ({config.LANGUAGE}) with instruction: {user_instruction}")
         prompts = self._get_system_prompts()
 
-        user_prompt_prefix = "用户请求：" if config.LANGUAGE == "Chinese" else "User Request:"
-        task_instruction = "设计世界设定集。" if config.LANGUAGE == "Chinese" else "Design the World Bible."
+        user_prompt_prefix = get_resource("label.user_request_prefix")
+        task_instruction = get_resource("prompt.architect_task")
         architect_prompt = f"{user_prompt_prefix} {user_instruction}\n\n{task_instruction}\n\n{self._language_rule()}"
 
         try:
@@ -586,11 +564,7 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
 
         rounds = max(0, config.WORLD_DISCUSSION_ROUNDS)
         for i in range(rounds):
-            critique_prompt = (
-                f"以下是世界设定初稿：\n\n{world_bible}\n\n请给出具体、可执行的改进建议。"
-                if config.LANGUAGE == "Chinese"
-                else f"Here is the draft World Bible:\n\n{world_bible}\n\nReview and provide concrete improvement suggestions."
-            )
+            critique_prompt = get_resource("prompt.world_bible_draft_critique", world_bible=world_bible)
             critique_prompt += f"\n\n{self._language_rule()}"
             try:
                 critique = self.critic_client.generate(
@@ -622,13 +596,7 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
             )
             self._save_file("critique.md", critique, self.critiques_dir)
 
-            revise_prompt = (
-                "请基于该审稿意见修订世界设定，保持结构清晰、内容精简并可持续扩展。\n\n"
-                f"当前设定：\n{world_bible}\n\n审稿意见：\n{critique}"
-                if config.LANGUAGE == "Chinese"
-                else "Revise the World Bible based on this critique while keeping it compact and extensible.\n\n"
-                f"Current Draft:\n{world_bible}\n\nCritique:\n{critique}"
-            )
+            revise_prompt = get_resource("prompt.world_bible_revise", world_bible=world_bible, critique=critique)
             revise_prompt += f"\n\n{self._language_rule()}"
             try:
                 revised = self.architect_client.generate(
@@ -662,26 +630,13 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
                 artifact_paths=[bible_path],
             )
 
-        plot_draft_prompt = (
-            "请基于以下世界设定输出《小说情节构思》。\n"
-            "要求：强调大阶段剧情推进、核心矛盾演进、关键人物关系变化，不要拆成逐章。\n\n"
-            f"世界设定：\n{world_bible}\n\n{self._language_rule()}"
-            if config.LANGUAGE == "Chinese"
-            else "Based on the following world bible, produce a 'Novel Plot Outline'.\n"
-            "Requirements: focus on major arc progression, core conflict evolution, and key relationship shifts; do not split chapter by chapter.\n\n"
-            f"World Bible:\n{world_bible}\n\n{self._language_rule()}"
-        )
+        plot_draft_prompt = get_resource("prompt.plot_outline_draft", world_bible=world_bible)
+        plot_draft_prompt += f"\n\n{self._language_rule()}"
         self._generate_outline_with_discussion(
-            phase_name="小说情节构思" if config.LANGUAGE == "Chinese" else "Novel Plot Outline",
+            phase_name=get_resource("label.plot_outline").strip("："),
             draft_prompt=plot_draft_prompt,
             revise_prompt_builder=(
-                lambda current, critique: (
-                    "请根据审稿意见修订《小说情节构思》，保持结构清晰且可持续扩展。\n\n"
-                    f"当前稿：\n{current}\n\n审稿意见：\n{critique}"
-                    if config.LANGUAGE == "Chinese"
-                    else "Revise the Novel Plot Outline based on the critique while keeping it structured and extensible.\n\n"
-                    f"Current Draft:\n{current}\n\nCritique:\n{critique}"
-                )
+                lambda current, critique: get_resource("prompt.plot_outline_revise", current=current, critique=critique)
             ),
             rounds=config.PLOT_DISCUSSION_ROUNDS,
             output_filename="plot_outline.md",
@@ -689,30 +644,13 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
         )
         plot_outline = self._read_text_if_exists(self._plot_outline_path())
 
-        detailed_plot_draft_prompt = (
-            "请基于世界设定与《小说情节构思》输出《小说的具体情节构思》。\n"
-            "要求：给出中短期剧情推进、关键场景簇、阶段目标与风险，仍不要写成逐章最终稿。\n\n"
-            f"世界设定：\n{world_bible}\n\n"
-            f"小说情节构思：\n{plot_outline}\n\n"
-            f"{self._language_rule()}"
-            if config.LANGUAGE == "Chinese"
-            else "Based on the world bible and Novel Plot Outline, produce a 'Detailed Plot Outline'.\n"
-            "Requirements: provide near/mid-term plot progression, key scene clusters, stage goals, and risks; still do not turn this into final chapter-by-chapter prose.\n\n"
-            f"World Bible:\n{world_bible}\n\n"
-            f"Novel Plot Outline:\n{plot_outline}\n\n"
-            f"{self._language_rule()}"
-        )
+        detailed_plot_draft_prompt = get_resource("prompt.detailed_plot_outline_draft", world_bible=world_bible, plot_outline=plot_outline)
+        detailed_plot_draft_prompt += f"\n\n{self._language_rule()}"
         self._generate_outline_with_discussion(
-            phase_name="小说具体情节构思" if config.LANGUAGE == "Chinese" else "Detailed Plot Outline",
+            phase_name=get_resource("label.detailed_plot_outline").strip("："),
             draft_prompt=detailed_plot_draft_prompt,
             revise_prompt_builder=(
-                lambda current, critique: (
-                    "请根据审稿意见修订《小说的具体情节构思》，并保持与世界设定和上一层情节构思一致。\n\n"
-                    f"当前稿：\n{current}\n\n审稿意见：\n{critique}"
-                    if config.LANGUAGE == "Chinese"
-                    else "Revise the Detailed Plot Outline based on critique, and keep it aligned with both the world bible and the high-level plot outline.\n\n"
-                    f"Current Draft:\n{current}\n\nCritique:\n{critique}"
-                )
+                lambda current, critique: get_resource("prompt.detailed_plot_outline_revise", current=current, critique=critique)
             ),
             rounds=config.DETAILED_PLOT_DISCUSSION_ROUNDS,
             output_filename="detailed_plot_outline.md",
@@ -720,12 +658,8 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
         )
 
         # Seed memory with initial structured facts extracted from the approved world bible.
-        scan_prefix = "世界设定：" if config.LANGUAGE == "Chinese" else "World Bible:"
-        scan_task = (
-            "请按既定 JSON 结构提取初始事实，用于数据库初始化。仅输出 JSON。"
-            if config.LANGUAGE == "Chinese"
-            else "Extract initial facts using the scanner JSON schema for DB initialization. Output JSON only."
-        )
+        scan_prefix = get_resource("label.world_background")
+        scan_task = get_resource("prompt.scanner_seed_task")
         scan_task += f" {self._language_rule()}"
         try:
             raw_seed = self.scanner_client.generate(
@@ -798,73 +732,45 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
             user_request=f"chapter_{self._num3(chapter_num)}_guide",
         )
         db_chars = context_pkg["characters"]  # type: ignore[assignment]
-        char_summary = "当前活跃角色：\n" if config.LANGUAGE == "Chinese" else "Active Characters:\n"
+        char_summary = get_resource("ui.char_summary_header")
         if db_chars:
             for c in db_chars:
-                char_summary += (
-                    f"- {c[0]}（状态：{c[2]}）\n"
-                    if config.LANGUAGE == "Chinese"
-                    else f"- {c[0]} (Status: {c[2]})\n"
-                )
+                char_summary += "- " + c[0] + get_resource("ui.status_label", status=c[2]) + "\n"
         else:
-            char_summary += "(暂无记录)\n" if config.LANGUAGE == "Chinese" else "(No records yet)\n"
+            char_summary += get_resource("ui.no_records")
 
         db_rules = context_pkg["rules"]  # type: ignore[assignment]
-        rule_summary = "动态世界规则：\n" if config.LANGUAGE == "Chinese" else "Dynamic World Rules:\n"
+        rule_summary = get_resource("ui.rule_summary_header")
         if db_rules:
             for r in db_rules:
-                rule_summary += (
-                    f"- [{r[0]}] {r[1]}（严格度：{r[2]}）\n"
-                    if config.LANGUAGE == "Chinese"
-                    else f"- [{r[0]}] {r[1]} (Strictness: {r[2]})\n"
-                )
+                rule_summary += get_resource("ui.rule_item", category=r[0], content=r[1], strictness=r[2])
         else:
-            rule_summary += "(暂无规则记录)\n" if config.LANGUAGE == "Chinese" else "(No rules recorded yet)\n"
+            rule_summary += get_resource("ui.rule_no_records")
 
         db_events = context_pkg["events"]  # type: ignore[assignment]
-        event_summary = (
-            "近期历史（二级事件）：\n"
-            if config.LANGUAGE == "Chinese"
-            else "Recent History (Tier 2 Events):\n"
-        )
+        event_summary = get_resource("ui.event_summary_header")
         if db_events:
             for e in db_events:
-                event_summary += (
-                    f"- [{e[3]}] {e[1]}：{e[2]}（地点：{e[6]}）\n"
-                    if config.LANGUAGE == "Chinese"
-                    else f"- [{e[3]}] {e[1]}: {e[2]} (Location: {e[6]})\n"
-                )
+                event_summary += get_resource("ui.event_item", timestamp=e[3], name=e[1], description=e[2], location=e[6])
         else:
-            event_summary += "(暂无事件记录)\n" if config.LANGUAGE == "Chinese" else "(No events recorded yet)\n"
+            event_summary += get_resource("ui.event_no_records")
         pending_conflicts = context_pkg["conflicts"]  # type: ignore[assignment]
-        conflict_summary = (
-            "待处理冲突：\n"
-            if config.LANGUAGE == "Chinese"
-            else "Pending Conflicts:\n"
-        )
+        conflict_summary = get_resource("ui.conflict_summary_header")
         if pending_conflicts:
             for conflict in pending_conflicts:
                 conflict_summary += (
                     f"- #{conflict[0]} [{conflict[3]}] {conflict[1]}:{conflict[2]} (chapter={conflict[5]})\n"
                 )
         else:
-            conflict_summary += (
-                "(暂无)\n" if config.LANGUAGE == "Chinese" else "(none)\n"
-            )
+            conflict_summary += get_resource("ui.none")
         semantic_summary = str(context_pkg["semantic_summary"])
         retrieval_intent = context_pkg["intent"]  # type: ignore[assignment]
 
-        context_prefix = "世界背景：" if config.LANGUAGE == "Chinese" else "World Context:"
-        plot_prefix = "小说情节构思：" if config.LANGUAGE == "Chinese" else "Novel Plot Outline:"
-        detailed_plot_prefix = (
-            "小说的具体情节构思：" if config.LANGUAGE == "Chinese" else "Detailed Plot Outline:"
-        )
-        prev_summary_prefix = "前情提要：" if config.LANGUAGE == "Chinese" else "Previous Chapter Summary:"
-        task_instruction = (
-            f"任务：创建第 {chapter_num} 章的写作契约。"
-            if config.LANGUAGE == "Chinese"
-            else f"Task: Create the Writing Contract for Chapter {chapter_num}."
-        )
+        context_prefix = get_resource("label.world_background")
+        plot_prefix = get_resource("label.plot_outline")
+        detailed_plot_prefix = get_resource("label.detailed_plot_outline")
+        prev_summary_prefix = get_resource("label.prev_summary_prefix")
+        task_instruction = get_resource("prompt.planner_task", chapter_num=chapter_num)
         task_instruction += f"\n{self._language_rule()}"
 
         full_prompt = f"{context_prefix}\n{world_bible}\n\n"
@@ -872,14 +778,12 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
             full_prompt += f"{plot_prefix}\n{plot_outline}\n\n"
         if detailed_plot_outline:
             full_prompt += f"{detailed_plot_prefix}\n{detailed_plot_outline}\n\n"
-        state_header = "--- 当前状态 ---" if config.LANGUAGE == "Chinese" else "--- CURRENT STATE ---"
-        state_footer = "----------------" if config.LANGUAGE == "Chinese" else "---------------------"
+        state_header = get_resource("ui.state_header")
+        state_footer = get_resource("ui.state_footer")
         full_prompt += f"{state_header}\n{char_summary}\n{rule_summary}\n{event_summary}\n{state_footer}\n\n"
         full_prompt += conflict_summary + "\n"
         full_prompt += (
-            f"检索策略: {retrieval_intent.get('task_type')} | {retrieval_intent.get('mode')} | tiers={retrieval_intent.get('required_tiers')}\n\n"
-            if config.LANGUAGE == "Chinese"
-            else f"Retrieval Policy: {retrieval_intent.get('task_type')} | {retrieval_intent.get('mode')} | tiers={retrieval_intent.get('required_tiers')}\n\n"
+            get_resource("label.retrieval_policy", task_type=retrieval_intent.get('task_type'), mode=retrieval_intent.get('mode'), tiers=retrieval_intent.get('required_tiers'))
         )
         full_prompt += semantic_summary + "\n"
         if previous_summary:
@@ -930,32 +834,26 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
         char_lines = []
         for c in db_chars:
             char_lines.append(
-                f"- {c[0]}（状态：{c[2]}）"
-                if config.LANGUAGE == "Chinese"
-                else f"- {c[0]} (Status: {c[2]})"
+                "- " + c[0] + get_resource("ui.status_label", status=c[2])
             )
         if not char_lines:
-            char_lines.append("(暂无记录)" if config.LANGUAGE == "Chinese" else "(No records yet)")
+            char_lines.append(get_resource("ui.no_records_simple"))
 
         rule_lines = []
         for r in db_rules:
             rule_lines.append(
-                f"- [{r[0]}] {r[1]}（严格度：{r[2]}）"
-                if config.LANGUAGE == "Chinese"
-                else f"- [{r[0]}] {r[1]} (Strictness: {r[2]})"
+                get_resource("ui.rule_item_no_newline", category=r[0], content=r[1], strictness=r[2])
             )
         if not rule_lines:
-            rule_lines.append("(暂无规则记录)" if config.LANGUAGE == "Chinese" else "(No rules recorded yet)")
+            rule_lines.append(get_resource("ui.rule_no_records_simple"))
 
         event_lines = []
         for e in db_events:
             event_lines.append(
-                f"- [{e[3]}] {e[1]}：{e[2]}（地点：{e[6]}）"
-                if config.LANGUAGE == "Chinese"
-                else f"- [{e[3]}] {e[1]}: {e[2]} (Location: {e[6]})"
+                get_resource("ui.event_item_no_newline", timestamp=e[3], name=e[1], description=e[2], location=e[6])
             )
         if not event_lines:
-            event_lines.append("(暂无事件记录)" if config.LANGUAGE == "Chinese" else "(No events recorded yet)")
+            event_lines.append(get_resource("ui.event_no_records_simple"))
 
         conflict_lines = []
         for conflict in pending_conflicts:
@@ -963,27 +861,21 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
                 f"- #{conflict[0]} [{conflict[3]}] {conflict[1]}:{conflict[2]} (chapter={conflict[5]})"
             )
         if not conflict_lines:
-            conflict_lines.append("(暂无)" if config.LANGUAGE == "Chinese" else "(none)")
+            conflict_lines.append(get_resource("ui.none_simple"))
 
-        contract_prefix = "写作契约：" if config.LANGUAGE == "Chinese" else "Writing Contract:"
-        write_instruction = (
-            f"现在撰写第 {chapter_num} 章。"
-            if config.LANGUAGE == "Chinese"
-            else f"Write Chapter {chapter_num} now."
-        )
+        contract_prefix = get_resource("label.contract") + "："
+        write_instruction = get_resource("prompt.writer_task", chapter_num=chapter_num)
         write_instruction += f"\n{self._language_rule()}"
-        writer_context_label = "写作上下文" if config.LANGUAGE == "Chinese" else "Writer Context"
-        previous_label = "前章摘要" if config.LANGUAGE == "Chinese" else "Previous Chapter Summary"
-        chars_label = "角色状态" if config.LANGUAGE == "Chinese" else "Character State"
-        rules_label = "世界规则" if config.LANGUAGE == "Chinese" else "World Rules"
-        events_label = "近期事件" if config.LANGUAGE == "Chinese" else "Recent Events"
-        conflicts_label = "待处理冲突" if config.LANGUAGE == "Chinese" else "Pending Conflicts"
-        semantic_label = "三级语义细节" if config.LANGUAGE == "Chinese" else "Tier-3 Semantic Details"
-        prev_text = previous_summary or ("（无）" if config.LANGUAGE == "Chinese" else "(none)")
+        writer_context_label = get_resource("label.writer_context")
+        previous_label = get_resource("label.previous_summary")
+        chars_label = get_resource("label.character_state")
+        rules_label = get_resource("label.world_rules")
+        events_label = get_resource("label.recent_events")
+        conflicts_label = get_resource("label.pending_conflicts")
+        semantic_label = get_resource("label.semantic_details")
+        prev_text = previous_summary or get_resource("ui.none_bracket")
         retrieval_policy = (
-            f"检索策略:\n- task={retrieval_intent.get('task_type')} mode={retrieval_intent.get('mode')} tiers={retrieval_intent.get('required_tiers')}\n\n"
-            if config.LANGUAGE == "Chinese"
-            else f"Retrieval Policy:\n- task={retrieval_intent.get('task_type')} mode={retrieval_intent.get('mode')} tiers={retrieval_intent.get('required_tiers')}\n\n"
+            get_resource("label.retrieval_policy_detailed", task_type=retrieval_intent.get('task_type'), mode=retrieval_intent.get('mode'), tiers=retrieval_intent.get('required_tiers'))
         )
         writer_prompt = (
             f"{contract_prefix}\n{guide_content}\n\n"
@@ -1062,15 +954,11 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
                 artifact_paths=[self.get_chapter_path(chapter_num)],
             )
 
-            revise_instruction = (
-                "根据审稿意见修订章节，仅输出修订后的正文。"
-                if config.LANGUAGE == "Chinese"
-                else "Revise the chapter based on critique. Output only the revised chapter text."
-            )
+            revise_instruction = get_resource("prompt.writer_revise")
             revise_instruction += f"\n{self._language_rule()}"
-            contract_label = "写作契约" if config.LANGUAGE == "Chinese" else "Writing Contract"
-            chapter_label = "当前章节正文" if config.LANGUAGE == "Chinese" else "Current Chapter"
-            critique_label = "审稿意见" if config.LANGUAGE == "Chinese" else "Critique"
+            contract_label = get_resource("label.contract")
+            chapter_label = get_resource("label.current_chapter")
+            critique_label = get_resource("label.critique")
             revise_prompt = (
                 f"{contract_label}:\n{guide}\n\n"
                 f"{chapter_label}:\n{current_text}\n\n"
@@ -1131,8 +1019,8 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
         except FileNotFoundError:
             raise RuntimeError(f"Chapter {chapter_num} not found.")
 
-        text_prefix = "章节正文：" if config.LANGUAGE == "Chinese" else "Chapter Text:"
-        extract_instruction = "现在提取事实 (JSON)。" if config.LANGUAGE == "Chinese" else "Extract facts (JSON) now."
+        text_prefix = get_resource("label.chapter_text") + "："
+        extract_instruction = get_resource("prompt.scanner_task")
         scanner_prompt = f"{text_prefix}\n{chapter_text}\n\n{extract_instruction}\n{self._language_rule()}"
 
         try:
@@ -1152,11 +1040,7 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
         )
 
         data = self._extract_json(raw_response)
-        summary_lines = (
-            [f"第 {chapter_num} 章摘要："]
-            if config.LANGUAGE == "Chinese"
-            else [f"Summary for Chapter {chapter_num}:"]
-        )
+        summary_lines = [get_resource("label.chapter_summary_prefix", chapter_num=chapter_num)]
 
         if not data:
             self._save_file(
@@ -1195,11 +1079,7 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
                 error_message=str(e),
             )
             raise
-        summary_lines.append(
-            f"提交ID: {commit_id}"
-            if config.LANGUAGE == "Chinese"
-            else f"Commit ID: {commit_id}"
-        )
+        summary_lines.append(get_resource("label.commit_id", commit_id=commit_id))
 
         self._save_file(
             f"chapter_{self._num3(chapter_num)}_facts.json",

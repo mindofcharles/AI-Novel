@@ -5,14 +5,15 @@ from llm_client import LLMClient
 from workflow_components.parsing import contains_cjk, language_confidence
 
 
+from workflow_components.resources import get_res_num, get_resource, is_chinese
+
+
 class WorkflowLanguageMixin:
     def _language_name(self) -> str:
-        return "Chinese" if config.LANGUAGE == "Chinese" else "English"
+        return config.LANGUAGE
 
     def _language_rule(self) -> str:
-        if config.LANGUAGE == "Chinese":
-            return "必须全程仅使用中文输出，不得混用其他语言（专有名词可保留原文）。"
-        return "Use English only for all outputs. Do not mix in other languages."
+        return get_resource("prompt.language_rule")
 
     @staticmethod
     def _contains_cjk(text: str) -> bool:
@@ -20,11 +21,14 @@ class WorkflowLanguageMixin:
 
     def _is_expected_language(self, text: str) -> bool:
         confidence = language_confidence(text)
-        if config.LANGUAGE == "Chinese":
-            if confidence["chinese"] >= 0.20:
+        if is_chinese():
+            if confidence["chinese"] >= get_res_num("lang.confidence_chinese_min"):
                 return True
             return self._contains_cjk(text)
-        if confidence["english"] >= 0.60 and confidence["chinese"] <= 0.10:
+        
+        # English check
+        if confidence["english"] >= get_res_num("lang.confidence_english_min") and \
+           confidence["chinese"] <= get_res_num("lang.confidence_chinese_max_for_english"):
             return True
         return not self._contains_cjk(text)
 

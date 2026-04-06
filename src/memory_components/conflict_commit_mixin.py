@@ -2,7 +2,6 @@ import json
 import uuid
 from typing import Any, Dict, List, Optional
 
-
 class MemoryConflictCommitMixin:
     @staticmethod
     def _flatten_dict(data: Any, prefix: str = "") -> Dict[str, Any]:

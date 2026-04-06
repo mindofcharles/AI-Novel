@@ -6,7 +6,6 @@ from typing import Dict, List, Optional
 import config
 from workflow_components.discussion import DiscussionLogger
 
-
 class WorkflowIOMixin:
     def _discussion_logger(self) -> DiscussionLogger:
         log_dir = getattr(self, "discussion_log_dir", os.path.join("novel", "Discussion_Log"))

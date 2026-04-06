@@ -1,6 +1,5 @@
 import sqlite3
 
-
 class MemorySchemaMixin:
     SCHEMA_VERSION = 6
 
