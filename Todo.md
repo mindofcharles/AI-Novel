@@ -2,6 +2,8 @@
 
 This document only contains In Progress, Known Issues, and Future Plans.
 
+Any resolved issues should not be stored in this document.
+
 ## In Progress
 
 1. Strengthen conflict engine causality checks (character status <-> timeline event semantics <-> strict rules) with higher precision and fewer false positives.
@@ -23,7 +25,6 @@ This document only contains In Progress, Known Issues, and Future Plans.
 4. **Heuristic Conflict Detection Limitations:** Current分词/词频 overlap score may miss logical/causal contradictions.
 5. **Embedding Model Dependency:** Vector store doesn't currently verify if the embedding model has changed since initialization.
 6. **Language Guard False Positives:** Language guard triggers expensive rewrites if English output contains too many Chinese characters (like character names), reducing efficiency.
-7. **Auto-Mode Interruption:** The continuous generation loop (`--auto`) breaks entirely if a single chapter's scanner fails JSON validation, lacking a retry mechanism.
 
 ## Future Plans
 

@@ -308,29 +308,42 @@ class WorkflowResumeMixin:
         for i in range(count):
             current_chapter = start_chapter + i
             self.logger.info(f"--- Processing Chapter {current_chapter} ---")
-            chapter_discarded = False
+            
+            max_retries = getattr(config, "AUTO_GENERATION_MAX_RETRIES", 3)
+            for attempt in range(max_retries):
+                chapter_discarded = False
 
-            if current_chapter in invalid_chapters:
-                self._discard_chapter_artifacts(current_chapter, reason="runtime_file_integrity_failed")
-                chapter_discarded = True
+                if current_chapter in invalid_chapters:
+                    self._discard_chapter_artifacts(current_chapter, reason="runtime_file_integrity_failed")
+                    chapter_discarded = True
+                    invalid_chapters.discard(current_chapter)
 
-            completed_ok, completed_reason = self._validate_chapter_completion_integrity(current_chapter)
-            if completed_ok:
-                self.logger.info(
-                    "Chapter %s already has scanned facts. Skip generation and continue from existing summary.",
-                    self._num3(current_chapter),
-                )
-                previous_summary = self._load_previous_summary(current_chapter)
-                continue
+                completed_ok, completed_reason = self._validate_chapter_completion_integrity(current_chapter)
+                if completed_ok:
+                    self.logger.info(
+                        "Chapter %s already has scanned facts. Skip generation and continue from existing summary.",
+                        self._num3(current_chapter),
+                    )
+                    previous_summary = self._load_previous_summary(current_chapter)
+                    break # Success, move to next chapter
 
-            if (not chapter_discarded) and self._chapter_has_any_artifacts(current_chapter):
-                self._discard_chapter_artifacts(current_chapter, reason=completed_reason)
+                if (not chapter_discarded) and self._chapter_has_any_artifacts(current_chapter):
+                    self._discard_chapter_artifacts(current_chapter, reason=completed_reason)
 
-            guide = self.generate_chapter_guide(current_chapter, previous_summary)
-            chapter_text = self.write_chapter(current_chapter, guide)
-            chapter_text, _ = self._review_and_revise_chapter(current_chapter, guide, chapter_text, prompts)
-            facts = self.scan_chapter(current_chapter)
-            previous_summary = facts
+                try:
+                    guide = self.generate_chapter_guide(current_chapter, previous_summary)
+                    chapter_text = self.write_chapter(current_chapter, guide)
+                    chapter_text, _ = self._review_and_revise_chapter(current_chapter, guide, chapter_text, prompts)
+                    facts = self.scan_chapter(current_chapter)
+                    previous_summary = facts
+                    break # Success, move to next chapter
+                except Exception as e:
+                    self.logger.error(f"Error generating Chapter {current_chapter} (Attempt {attempt + 1}/{max_retries}): {e}")
+                    if attempt == max_retries - 1:
+                        raise RuntimeError(f"Failed to generate Chapter {current_chapter} after {max_retries} attempts. Aborting.")
+                    self.logger.info("Discarding artifacts and retrying...")
+                    self._discard_chapter_artifacts(current_chapter, reason=f"generation_error_attempt_{attempt + 1}")
+                    time.sleep(2)
 
             time.sleep(1)
 

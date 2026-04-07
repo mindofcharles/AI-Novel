@@ -102,6 +102,7 @@ CHAPTER_REVISION_ROUNDS = _env_int("CHAPTER_REVISION_ROUNDS", 1)
 CHAPTER_TEXT_DISCUSSION_ROUNDS = _env_int(
     "CHAPTER_TEXT_DISCUSSION_ROUNDS", CHAPTER_REVISION_ROUNDS
 )
+AUTO_GENERATION_MAX_RETRIES = _env_int("AUTO_GENERATION_MAX_RETRIES", 3)
 
 # Blocking conflict governance mode:
 # - "auto_keep_existing": auto-resolve BLOCKING conflicts by keep_existing before gating.
