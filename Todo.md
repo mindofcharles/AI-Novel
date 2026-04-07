@@ -22,6 +22,8 @@ This document only contains In Progress, Known Issues, and Future Plans.
 3. Language guard now has confidence scoring, but still uses rewrite fallback as the final correction path.
 4. **Heuristic Conflict Detection Limitations:** Current分词/词频 overlap score may miss logical/causal contradictions.
 5. **Embedding Model Dependency:** Vector store doesn't currently verify if the embedding model has changed since initialization.
+6. **Language Guard False Positives:** Language guard triggers expensive rewrites if English output contains too many Chinese characters (like character names), reducing efficiency.
+7. **Auto-Mode Interruption:** The continuous generation loop (`--auto`) breaks entirely if a single chapter's scanner fails JSON validation, lacking a retry mechanism.
 
 ## Future Plans
 

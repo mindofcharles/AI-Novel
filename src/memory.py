@@ -1027,8 +1027,13 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
             return {"rebuilt": 0, "skipped": skipped}
 
         new_index = faiss.IndexFlatL2(target_dim)
+        
+        started_batch = False
+        if not self._in_batch:
+            self.begin_batch()
+            started_batch = True
+            
         try:
-            self.conn.execute("BEGIN")
             self.cursor.execute("DELETE FROM vector_metadata")
             for new_id, row in enumerate(rebuilt_rows):
                 _, content, metadata_json, source_commit_id, version, is_deleted, intent_tag, emb = row
@@ -1054,13 +1059,20 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
                 )
                 used_ids.add(tombstone_id)
                 tombstone_id -= 1
-            self.conn.commit()
+                
+            if started_batch:
+                self.end_batch(success=True)
+                
             self.index = new_index
             self.embedding_dim = target_dim
-            self.save_faiss()
+            if not self._in_batch:
+                self.save_faiss()
+            else:
+                self._mark_faiss_dirty()
             return {"rebuilt": len(rebuilt_rows), "skipped": skipped}
         except Exception:
-            self.conn.rollback()
+            if started_batch:
+                self.end_batch(success=False)
             if old_index_backup is not None:
                 self.index = old_index_backup
             raise
