@@ -192,11 +192,48 @@ Pending conflicts are manually resolvable through CLI actions (`keep_existing` /
 
 After World Bible + Plot discussions finish, the system asks the Scanner role to extract initial structured facts (JSON schema identical to chapter scanning) and seeds SQLite/FAISS before Chapter 1 planning. This reduces empty-context starts and improves early chapter continuity.
 
+## System Robustness & Integrity
+
+The system employs several layers of engineering to maintain stability and consistency during long-form generation.
+
+### 1. Multi-tier Retrieval Funnel
+
+To avoid "context pollution," the `StoryStateManager` filters and ranks facts:
+
+* **Intent-based Gating**: Determines if semantic retrieval is needed.
+* **SQLite Pre-filtering**: Limits character and event scope based on focus entities.
+* **Cross-Tier Alignment**: Filters out semantic hallucinations (T3) that contradict hard facts (T1/T2), such as a dead character performing actions.
+* **Weighted Reranking**: Boosts details that match focus entities (+0.35) or locations (+0.50).
+
+### 2. Atomic Memory Transactions
+
+`MemoryManager` ensures that a single bad scan doesn't corrupt the long-term memory:
+
+* **FAISS Index Cloning**: At the start of a chapter commit, the system creates a full snapshot of the vector index.
+* **Synchronized Rollback**: If a `BLOCKING` conflict occurs, the system rollbacks the SQLite transaction and restores the FAISS index from the snapshot.
+
+### 3. Exhaustive Interruption Recovery
+
+The `WorkflowResumeMixin` performs a three-stage integrity check during resume:
+
+1. **Physical**: Validates file existence and non-zero size.
+2. **Schema**: Validates JSON/JSONL against required schemas.
+3. **Database**: Validates that the chapter commit status is marked as `COMPLETED` in the SQLite `chapter_commits` table.
+*Any failure triggers a clean purge of all partial chapter artifacts.*
+
+### 4. Language Guard
+
+Ensures output consistency by calculating a CJK/Latin confidence ratio. If the output language is incorrect, the system triggers an automatic LLM-driven rewrite loop.
+
 ## Customization
 
-### Prompts
+### i18n & Prompts
 
-System prompts for each agent are stored in `src/prompts/` in consolidated Markdown files.
-Naming convention: `{language_code}.md` (e.g., `zh.md`, `en.md`).
-Each agent's prompt is defined under a second-level heading (e.g., `## Architect`).
-You can modify these files to adjust the behavior or style of specific agents without changing the code.
+All system prompts and user-facing strings are managed in the `i18n/` directory:
+
+* **AI Fragments & Templates**: `i18n/AI/{language_code}/`
+  * `fragments.json`: Short instructions and labels used in Context.
+  * `templates.md`: Multi-line system prompts and task instructions (organized by `## Key`).
+* **User Messages**: `i18n/messages/{language_code}/ui.json` (UI strings, summaries, and reports).
+
+You can add new languages or modify behavior by creating/editing files in these directories and updating `config.LANGUAGE`.

@@ -34,7 +34,7 @@ client = LLMClient(
 * `get_embedding(text: str) -> Optional[list]`
   * Generates a vector embedding for the given text using the **Embedding Client**.
   * **Providers:**
-    * `openai`: Uses `EMBEDDING_BASE_URL` (e.g., Ollama/LM Studio) and `EMBEDDING_MODEL_NAME`.
+    * `openai`: Uses `EMBEDDING_BASE_URL` (e.g., Llama.cpp/LM Studio) and `EMBEDDING_MODEL_NAME`.
     * `gemini`: Uses `GEMINI_EMBEDDING_MODEL` ("text-embedding-004").
   * Used for the FAISS vector store.
 
@@ -128,6 +128,10 @@ Orchestrates the multi-agent process.
 * `_append_structured_discussion(...)`
   * Internal normalized logger for `world|plot|guide|chapter_text`.
   * Writes markdown entries with consistent title/fields and appends JSON lines to `discussion_index.jsonl`.
+
+* `load_system_prompts(language: str, src_dir: str) -> Dict[str, str]`
+  * Loads core agent prompts from the `i18n/` system using `LanguageResources`.
+  * Returns a dictionary of prompts for `architect`, `critic`, `planner`, `writer`, and `scanner`.
 
 * `start_new_project(user_instruction: str)`
   * **Phase 1:** Invokes the **Architect** agent.
