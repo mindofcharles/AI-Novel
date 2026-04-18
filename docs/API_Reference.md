@@ -191,7 +191,8 @@ Orchestrates the multi-agent process.
   * Rebuilds vector index from metadata using current embedding backend.
 * `run_continuous_loop(start_chapter: int, count: int)`
   * Executes Plan -> Write -> Review/Revise -> Scan in sequence for a chapter range.
-  * Resume behavior:
+  * Resume & Error Handling behavior:
+    * Includes an automatic retry mechanism (up to `AUTO_GENERATION_MAX_RETRIES`) per chapter to recover from API or validation failures, discarding corrupted artifacts before retrying.
     * Performs strict runtime artifact integrity validation across generated files under `novel/` (JSON/JSONL/text artifacts).
     * If scanned facts for a chapter are complete and valid, that chapter is skipped.
     * Before skipping, integrity checks validate chapter text, facts summary, facts JSON schema, and latest scan commit status + payload.

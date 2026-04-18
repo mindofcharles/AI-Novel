@@ -29,6 +29,7 @@ Open `src/config.py` to customize the system behavior:
 * **Models**: Configure the `PRIMARY_MODEL_TYPE` and specific model names for each agent (Architect, Planner, Writer, Critic, Scanner).
 * **Endpoints**: Set `OPENAI_BASE_URL`, `EMBEDDING_BASE_URL`, and API keys in your environment variables or directly in the config (not recommended for secrets).
 * **Workflow**: Adjust `WORLD_DISCUSSION_ROUNDS` or `CHAPTER_REVISION_ROUNDS` to control how much the agents iterate.
+* **Auto Mode**: Set `AUTO_GENERATION_MAX_RETRIES` (default: 3) to control how many times the system will retry generating a chapter if an API or JSON parsing error occurs during `--auto` mode.
 
 ## 3. Getting Started
 

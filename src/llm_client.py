@@ -99,17 +99,17 @@ class LLMClient:
             if not self.gemini_client:
                 self._setup_gemini()
 
-    def generate(self, prompt: str, system_instruction: str = None, temperature: float = 0.7) -> str:
+    def generate(self, prompt: str, system_instruction: str = None, temperature: float = 0.7, require_json: bool = False) -> str:
         """
         Unified generation method.
         """
         if self.model_type == "gemini":
-            return self._generate_gemini(prompt, system_instruction, temperature)
+            return self._generate_gemini(prompt, system_instruction, temperature, require_json)
         elif self.model_type == "openai":
-            return self._generate_openai(prompt, system_instruction, temperature)
+            return self._generate_openai(prompt, system_instruction, temperature, require_json)
         return ""
 
-    def _generate_gemini(self, prompt: str, system_instruction: str, temperature: float) -> str:
+    def _generate_gemini(self, prompt: str, system_instruction: str, temperature: float, require_json: bool = False) -> str:
         if not self.gemini_client:
             raise LLMClientError("Gemini client not initialized.")
         
@@ -120,6 +120,8 @@ class LLMClient:
             config_args = {
                 "temperature": temperature
             }
+            if require_json:
+                config_args["response_mime_type"] = "application/json"
             
             # Prepare arguments
             kwargs = {
@@ -138,7 +140,7 @@ class LLMClient:
             self.logger.error(f"Gemini generation error: {e}")
             raise LLMClientError(f"Gemini generation failed: {e}") from e
 
-    def _generate_openai(self, prompt: str, system_instruction: str, temperature: float) -> str:
+    def _generate_openai(self, prompt: str, system_instruction: str, temperature: float, require_json: bool = False) -> str:
         if not self.openai_client:
             raise LLMClientError("OpenAI client not initialized.")
 
@@ -147,12 +149,16 @@ class LLMClient:
             messages.append({"role": "system", "content": system_instruction})
         messages.append({"role": "user", "content": prompt})
 
+        kwargs = {
+            "model": self.model_name or config.OPENAI_MODEL_NAME,
+            "messages": messages,
+            "temperature": temperature
+        }
+        if require_json:
+            kwargs["response_format"] = { "type": "json_object" }
+
         try:
-            response = self.openai_client.chat.completions.create(
-                model=self.model_name or config.OPENAI_MODEL_NAME,
-                messages=messages,
-                temperature=temperature
-            )
+            response = self.openai_client.chat.completions.create(**kwargs)
             return response.choices[0].message.content
         except Exception as e:
             self.logger.error(f"OpenAI generation error: {e}")

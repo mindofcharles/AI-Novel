@@ -1027,6 +1027,7 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
             raw_response = self.scanner_client.generate(
                 prompt=scanner_prompt,
                 system_instruction=prompts["scanner"],
+                require_json=True,
             )
         except LLMClientError as e:
             raise RuntimeError(str(e)) from e
