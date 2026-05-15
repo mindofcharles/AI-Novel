@@ -1080,6 +1080,30 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
                 error_message=str(e),
             )
             raise
+
+        if new_conflicts > 0:
+            pending = self.memory.get_pending_conflicts(limit=100)
+            chapter_conflicts = [c for c in pending if c[5] == chapter_num]
+            for c in chapter_conflicts:
+                c_id = c[0]
+                conflict_type = c[3]
+                if conflict_type in ["relationship_type_change", "status_dead_to_alive"]:
+                    diag = self.memory.get_conflict_by_id(c_id)
+                    if not diag: continue
+                    arbiter_prompt = f"{get_resource('prompt.arbiter_task')}\n\nChapter Context:\n{chapter_text}\n\nExisting State:\n{diag[5]}\n\nNew State:\n{diag[4]}\n\n{get_resource('prompt.arbiter_format')}"
+                    try:
+                        response = self.critic_client.generate(
+                            prompt=arbiter_prompt,
+                            system_instruction="You are a strict plot continuity AI.",
+                            require_json=True
+                        )
+                        res_json = json.loads(response)
+                        if not res_json.get("is_conflict", True):
+                            self.memory.resolve_conflict(c_id, "apply_incoming", f"LLM Arbiter: {res_json.get('reason', 'Reasonable progression')}", source="llm_arbiter")
+                            self.logger.info(f"LLM Arbiter auto-resolved conflict {c_id} as non-conflict.")
+                    except Exception as err:
+                        self.logger.warning(f"Conflict arbiter failed for {c_id}: {err}")
+
         summary_lines.append(get_resource("label.commit_id", commit_id=commit_id))
 
         self._save_file(

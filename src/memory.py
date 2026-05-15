@@ -415,6 +415,7 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
         details: str = None,
         source_tag: str = "unknown",
         chapter_num: Optional[int] = None,
+        conflict_safe: bool = False,
     ):
         """Adds or updates a relationship."""
         source = (source or "").strip()
@@ -429,7 +430,7 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
             (source, target),
         )
         before = self.cursor.fetchone()
-        if before and (before[2] or "").strip() != relation_type and relation_type:
+        if (not conflict_safe) and before and (before[2] or "").strip() != relation_type and relation_type:
             self.queue_conflict(
                 entity_type="relationship",
                 entity_key=f"{source}->{target}",

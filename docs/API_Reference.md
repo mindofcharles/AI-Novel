@@ -172,6 +172,7 @@ Orchestrates the multi-agent process.
     * Add/Update Characters (SQLite).
     * Add Timeline Events (SQLite).
     * Add Semantic Details (FAISS).
+  * **LLM Arbiter (New):** After initial database updates, the system scans for pending conflicts (e.g., `relationship_type_change`). It passes the chapter text and conflicting states to the Critic client (acting as Arbiter) to determine if the change is a "reasonable plot progression." If so, the conflict is auto-resolved.
   * Returns a text summary of the updates.
   * Saves `chapter_{n}_facts_summary.md` for chapter-to-chapter continuity.
 * `review_revise_and_scan(chapter_num: int, guide_content: str, chapter_text: str) -> str`

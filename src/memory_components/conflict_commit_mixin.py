@@ -438,6 +438,16 @@ class MemoryConflictCommitMixin:
                     chapter_num=chapter_num,
                     conflict_safe=True,
                 )
+            elif entity_type == "relationship" and conflict_type == "relationship_type_change":
+                self.add_relationship(
+                    source=incoming_json.get("source_name"),
+                    target=incoming_json.get("target_name"),
+                    relation_type=incoming_json.get("relation_type"),
+                    details=incoming_json.get("details"),
+                    source_tag=source,
+                    chapter_num=chapter_num,
+                    conflict_safe=True,
+                )
             else:
                 return False
 

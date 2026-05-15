@@ -16,5 +16,7 @@
   "prompt.writer_revise": "根据审稿意见修订章节，仅输出修订后的正文。",
   "prompt.scanner_task": "现在提取事实 (JSON)。",
   "prompt.intent_rationale_conflict": "存在待处理冲突，优先检索冲突相关上下文。",
-  "prompt.intent_rationale_continuity": "按角色/事件连续性检索三级细节。"
+  "prompt.intent_rationale_continuity": "按角色/事件连续性检索三级细节。",
+  "prompt.arbiter_task": "你是一个剧情合理性仲裁者。请判断以下角色状态或关系的改变，是“合理的剧情发展”还是“设定漏洞/矛盾”。例如：从“朋友”变为“恋人”或“仇人”属于合理发展，从“死者”毫无解释地变为“活人”属于漏洞。",
+  "prompt.arbiter_format": "请严格输出 JSON 格式：{\"is_conflict\": true/false, \"reason\": \"...\"}。如果判定为合理的剧情推进，is_conflict 必须为 false。"
 }

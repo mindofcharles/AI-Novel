@@ -16,5 +16,7 @@
   "prompt.writer_revise": "Revise the chapter based on critique. Output only the revised chapter text.",
   "prompt.scanner_task": "Extract facts (JSON) now.",
   "prompt.intent_rationale_conflict": "Use conflict-aware retrieval to avoid amplifying unresolved contradictions.",
-  "prompt.intent_rationale_continuity": "Retrieve Tier-3 details for chapter continuity by entity/event context."
+  "prompt.intent_rationale_continuity": "Retrieve Tier-3 details for chapter continuity by entity/event context.",
+  "prompt.arbiter_task": "You are a plot rationality arbiter. Please determine if the following state or relationship change is a 'reasonable plot progression' or a 'setting contradiction/loophole'. For example: changing from 'friend' to 'lover' or 'enemy' is reasonable, while a 'dead' character inexplicably becoming 'alive' is a contradiction.",
+  "prompt.arbiter_format": "Strictly output in JSON format: {\"is_conflict\": true/false, \"reason\": \"...\"}. If it is a reasonable plot progression, is_conflict MUST be false."
 }

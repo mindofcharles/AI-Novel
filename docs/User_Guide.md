@@ -87,7 +87,10 @@ If you want fine-grained control, you can run steps individually:
 
 ### Conflict Triage
 
-When the Scanner detects a contradiction (e.g., a dead character appearing in a scene), it creates a **Conflict**.
+When the Scanner detects a change in the story's state (e.g., a character's relationship changes or a dead character appears), it evaluates the change:
+
+1. **LLM Arbiter (Auto-Resolution):** For plot-dependent changes like `relationship_type_change` or `status_dead_to_alive`, the system sends the full chapter text and the conflicting states to an LLM Arbiter. If the Arbiter determines this is a "reasonable plot progression" (e.g., enemies becoming friends), the conflict is automatically resolved and the database is updated.
+2. **Manual Triage:** If the Arbiter determines it's a true contradiction (e.g., a character resurrecting with no plot explanation), or for other strict rule violations, it creates a **Conflict** that requires your intervention.
 
 * **List Conflicts**: `python src/main.py --conflicts-triage`
 * **Resolve a Conflict**:
