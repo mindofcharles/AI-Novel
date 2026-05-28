@@ -134,13 +134,13 @@ The system operates on a continuous Plan-Write-Scan loop where the output of one
 
 4b. **Critic Fact Review (Pre-Commit)**
 
-   * **Input:** Validated Scanner JSON + current DB state snapshot + chapter text.
-   * **Action:** LLM Critic examines all extracted facts against established story state in a single batch call.
-   * **Detection Scope:** Dead→alive contradictions, strict world rule violations, logical/causal impossibilities, character identity contradictions.
-   * **Output:** Issues list with severity levels:
-     * `BLOCKING` — fact removed from payload; conflict queued for manual review.
-     * `NON_BLOCKING` — fact kept in payload; conflict queued as advisory.
-   * **Fallback:** If the Critic LLM call fails, facts pass through unchanged (graceful degradation).
+* **Input:** Validated Scanner JSON + current DB state snapshot + chapter text.
+* **Action:** LLM Critic examines all extracted facts against established story state in a single batch call.
+* **Detection Scope:** Dead→alive contradictions, strict world rule violations, logical/causal impossibilities, character identity contradictions.
+* **Output:** Issues list with severity levels:
+  * `BLOCKING` — fact removed from payload; conflict queued for manual review.
+  * `NON_BLOCKING` — fact kept in payload; conflict queued as advisory.
+* **Fallback:** If the Critic LLM call fails, facts pass through unchanged (graceful degradation).
 
 5. **Memory Manager (System)**
    * **Action:** Parses the Scanner's JSON.
