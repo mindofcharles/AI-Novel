@@ -3,11 +3,11 @@
 # ==========================================
 models:
   # Key references from config/ai_model_config.yaml
-  default_model: "gemini"
+  default_model: "local-AI"
   architect_model: "local-AI"
-  planner_model: "gemini"
+  planner_model: "local-AI"
   writer_model: "local-AI"
-  critic_model: "gemini"
+  critic_model: "local-AI"
   scanner_model: "local-AI"
   embedding_model: "emb"
 

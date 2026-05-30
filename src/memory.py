@@ -32,6 +32,15 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
             os.makedirs(db_dir, exist_ok=True)
         
         self._init_sqlite()
+        
+        # Load embedding dimension from SQLite schema_meta if present
+        db_dim = self.get_schema_meta("embedding_dim")
+        if db_dim:
+            try:
+                self.embedding_dim = int(db_dim)
+            except (ValueError, TypeError):
+                pass
+                
         self._init_faiss()
 
     def _maybe_commit(self):
@@ -657,6 +666,7 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
         if self.index is None:
             self.embedding_dim = actual_dim
             self.index = faiss.IndexFlatL2(actual_dim)
+            self.set_schema_meta("embedding_dim", str(actual_dim))
         elif self.index.d != actual_dim:
             raise RuntimeError(
                 f"Embedding dimension mismatch detected (new: {actual_dim}, existing: {self.index.d}). "
@@ -860,6 +870,7 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
                 
             self.index = new_index
             self.embedding_dim = target_dim
+            self.set_schema_meta("embedding_dim", str(target_dim))
             if not self._in_batch:
                 self.save_faiss()
             else:

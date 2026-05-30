@@ -1,4 +1,7 @@
 import sqlite3
+import sys
+from typing import Optional
+
 
 class MemorySchemaMixin:
     SCHEMA_VERSION = 6
@@ -304,3 +307,26 @@ class MemorySchemaMixin:
         self.cursor = self.conn.cursor()
         self._ensure_schema_meta_table()
         self._run_migrations()
+
+    def get_schema_meta(self, key: str) -> Optional[str]:
+        # Allow generic retrieval of keys from schema_meta table
+        self.cursor.execute(
+            "SELECT value FROM schema_meta WHERE key = ? LIMIT 1",
+            (key,),
+        )
+        row = self.cursor.fetchone()
+        return row[0] if row else None
+
+    def set_schema_meta(self, key: str, value: str):
+        # Allow generic insert/upsert of keys in schema_meta table
+        self.cursor.execute(
+            """
+            INSERT INTO schema_meta (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (key, str(value)),
+        )
+        if hasattr(self, "_maybe_commit"):
+            self._maybe_commit()
+        elif self.conn and not getattr(self, "_in_batch", False):
+            self.conn.commit()

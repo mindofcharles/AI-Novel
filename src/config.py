@@ -87,7 +87,6 @@ for key, model_info in _model_registry.items():
         "api_key": resolved_api_key,
         "base_url": resolved_base_url,
         "model_name": model_name,
-        "dim": int(model_info.get("dim", 768)),
     }
 
 # 5. Resolve configured roles
@@ -106,7 +105,6 @@ WRITER_CONFIG = _resolve_role_config("writer_model")
 CRITIC_CONFIG = _resolve_role_config("critic_model")
 SCANNER_CONFIG = _resolve_role_config("scanner_model")
 EMBEDDING_CONFIG = _resolve_role_config("embedding_model")
-EMBEDDING_DIM = int(EMBEDDING_CONFIG.get("dim", 768))
 
 # Expose key variables for other parts of the application or tests
 # =============================

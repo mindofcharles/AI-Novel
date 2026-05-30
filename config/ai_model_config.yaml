@@ -26,10 +26,9 @@ gpt-5.5:
 emb:
   model_type: "embedding"
   api_type: "openai"
-  api_key: "${EMBEDDING_API_KEY}"
+  api_key: ""
   base_url: "http://localhost:----/v1"
-  model_name: "local-embedding-model"
-  dim: 768
+  model_name: ""
 
 ## Customizable using the format above
 

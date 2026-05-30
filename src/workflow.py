@@ -32,7 +32,92 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
         # Shared embedding client
         self.embedding_client = LLMClient(model_config=config.EMBEDDING_CONFIG, enable_embedding=True)
 
-        self.memory = MemoryManager(config.DB_PATH, config.FAISS_INDEX_PATH, embedding_dim=config.EMBEDDING_DIM)
+        self.memory = MemoryManager(config.DB_PATH, config.FAISS_INDEX_PATH)
+        
+        # Setup get_embedding proxy wrapper for validation
+        original_get_embedding = self.embedding_client.get_embedding
+        self.embedding_client._fingerprint_verified = False
+        self.embedding_client._bypass_all_checks = False
+        self.embedding_client._original_get_embedding = original_get_embedding
+
+        def wrapped_get_embedding(text: str) -> Optional[list]:
+            # A. Bypass all validations during rebuild/migration if flag is set
+            if getattr(self.embedding_client, "_bypass_all_checks", False):
+                return original_get_embedding(text)
+
+            # B. Lazy, single-run validation of the Hello World vector fingerprint
+            if not getattr(self.embedding_client, "_fingerprint_verified", False):
+                # Mark as verified immediately to avoid recursive infinite loops
+                self.embedding_client._fingerprint_verified = True
+                
+                hw_vector = original_get_embedding("Hello World!")
+                if hw_vector:
+                    hw_dim = len(hw_vector)
+                    
+                    # 1. Fetch any existing fingerprint and dimension from SQLite schema_meta
+                    existing_fp_json = self.memory.get_schema_meta("embedding_fingerprint")
+                    existing_dim_str = self.memory.get_schema_meta("embedding_dim")
+                    
+                    # 2. Check fingerprint match if exists
+                    if existing_fp_json:
+                        try:
+                            existing_fp = json.loads(existing_fp_json)
+                            import numpy as np
+                            if not np.allclose(hw_vector, existing_fp, atol=1e-5):
+                                raise RuntimeError(
+                                    "Embedding Model Mismatch: The registered embedding model does not match the model used to build the existing database. "
+                                    "To switch models, please run --rebuild-vectors."
+                                )
+                        except (json.JSONDecodeError, TypeError, ValueError) as e:
+                            self.logger.warning(f"Could not parse stored embedding fingerprint: {e}")
+                    else:
+                        # Initialize SQLite schema_meta fingerprint & dim
+                        self.memory.set_schema_meta("embedding_fingerprint", json.dumps(hw_vector))
+                        self.memory.set_schema_meta("embedding_dim", str(hw_dim))
+                        self.memory.embedding_dim = hw_dim
+                        
+                    # 3. Check dimension match if exists
+                    if existing_dim_str:
+                        try:
+                            existing_dim = int(existing_dim_str)
+                            if hw_dim != existing_dim:
+                                raise RuntimeError(
+                                    f"Embedding Dimension Mismatch: expected {existing_dim}, got {hw_dim}. "
+                                    "Please run --rebuild-vectors to safely migrate existing vector data."
+                                )
+                        except (ValueError, TypeError):
+                            pass
+                    else:
+                        self.memory.set_schema_meta("embedding_dim", str(hw_dim))
+                        self.memory.embedding_dim = hw_dim
+
+            # C. Fetch vector for target text
+            vector = original_get_embedding(text)
+            
+            # D. Verify dimension on EVERY returned vector (local, inexpensive check)
+            if vector:
+                expected_dim = None
+                if self.memory.index is not None:
+                    expected_dim = self.memory.index.d
+                else:
+                    db_dim = self.memory.get_schema_meta("embedding_dim")
+                    if db_dim:
+                        try:
+                            expected_dim = int(db_dim)
+                        except (ValueError, TypeError):
+                            pass
+                if expected_dim is None:
+                    expected_dim = self.memory.embedding_dim
+                
+                if expected_dim is not None and len(vector) != expected_dim:
+                    raise RuntimeError(
+                        f"Embedding dimension mismatch: expected {expected_dim}, got {len(vector)}. "
+                        "Please run --rebuild-vectors to safely migrate existing vector data."
+                    )
+            return vector
+
+        self.embedding_client.get_embedding = wrapped_get_embedding
+
         self.state_manager = StoryStateManager(self.memory, self.embedding_client)
 
         self.world_dir = os.path.join(config.FRAME_DIR, "world")
@@ -1300,4 +1385,21 @@ class WorkflowManager(WorkflowResumeMixin, WorkflowIOMixin, WorkflowLanguageMixi
             return False
 
     def rebuild_vector_index(self) -> Dict[str, int]:
-        return self.memory.rebuild_vector_index_from_metadata(self.embedding_client.get_embedding)
+        # Bypass all checks during rebuild
+        self.embedding_client._bypass_all_checks = True
+        try:
+            stats = self.memory.rebuild_vector_index_from_metadata(self.embedding_client.get_embedding)
+            
+            # Post-rebuild: overwrite fingerprint and dimension in SQLite schema_meta with the new model's values
+            original_get_embedding = getattr(self.embedding_client, "_original_get_embedding", self.embedding_client.get_embedding)
+            hw_vector = original_get_embedding("Hello World!")
+            if hw_vector:
+                new_dim = len(hw_vector)
+                self.memory.set_schema_meta("embedding_fingerprint", json.dumps(hw_vector))
+                self.memory.set_schema_meta("embedding_dim", str(new_dim))
+                self.memory.embedding_dim = new_dim
+                
+            return stats
+        finally:
+            self.embedding_client._bypass_all_checks = False
+            self.embedding_client._fingerprint_verified = True # Re-mark as verified since we just updated
