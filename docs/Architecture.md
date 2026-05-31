@@ -228,6 +228,36 @@ When running under continuous writing mode (`--auto`) or enabled via the CLI fla
   * **Structured Context**: SQLite character profiles/attributes, global strict world rules, and the last 10 timeline events.
 * **Auditable Logs**: Every debate session transcript and reasoning is written to `novel/process/discussions/conflict_{id}_resolution_discussion.md`.
 
+## High-Level AI Autonomy & Dynamic Subagent Delegation
+
+To support complex narrative tasks, background lore alignment, and timeline auditing, the system implements an experimental **Modular Broker-Node Autonomy Suite** that empowers AI agents to transition from passive context consumers to active coordinators.
+
+### 1. Modular Event-Broker Node Architecture
+
+The autonomy suite is built on a highly decoupled event-driven model:
+
+* **`AgentNode`**: Represents a single agent in the execution tree. Prepend runtime identity profile headers to prompt templates (identity, parent node, sibling peers, spawning boundaries, active objective) to maintain role discipline. Executes tasks inside a bounded ReAct (Reasoning & Action) tool invocation loop.
+* **`MessageBroker`**: Coordinates and routes message transfers between parent, child, and sibling agents. Handles message registration and supports P2P collaborative queues between sibling specialist teams.
+* **`GatedFileReader`**: Protects the LLM context window from massive logs or data dumps by restricting direct reads on files exceeding `large_file_threshold_kb` (default: 50 KB). Returns a structured **File Outline** warning (with sampled lines) instead, forcing agents to query specific slices using the paginated `read_file_chunk(path, start_line, end_line)` tool (capped at `max_chunk_lines` e.g. 100). Includes `read_file_tail` for streaming logs and index files.
+* **`SupervisorAgent`**: An asynchronous, non-participating observer auditor node subscribed to all broker traffic. It does not write prose or argue details. Instead, it enforces constraints:
+  * **Resource Cost Budgeting**: Tracks estimated session tokens and terminates execution with an `EARLY_TERMINATION` command if costs exceed the configured cap (default: `$1.00`).
+  * **Deadlock Detection**: Analyzes debate logs across a sliding 3-turn window using a word-overlap lexical similarity metric (> 75%). If sibling agents fall into circular arguments, it interjects an `INTERJECT_PROMPT` command containing overriding instructions to force the Planner to synthesize a compromise.
+  * **Team Pruning**: Dispatches `PRUNE_NODE` commands to gracefully shut down redundant subagents upon task completion, releasing memory and active database connections.
+
+### 2. Hierarchical Spawning & Escalation Channels
+
+* **Depth Limit Gate**: Spawning of subagent trees is strictly restricted to a maximum depth of 2 (Root Depth 0 -> Child Depth 1 -> Grandchild Depth 2).
+* **Bidirectional Escalation**: If a Grandchild agent (Depth 2) requires additional delegation or research, it is structurally forbidden from spawning depth-3 agents. Instead, it escalates a structured JSON request to its parent Child (Depth 1) node via the broker. The parent proxy coordinates the task and relays the results back down, preventing infinite agent loops and resource blowout.
+
+### 3. Autonomy Toggles in Configuration
+
+The entire autonomy framework is highly modular and can be fully enabled/disabled or tuned in `config.yaml` under `autonomy:`:
+
+* `enable_autonomy_suite`: Master toggle to load/skip all autonomy components.
+* `enable_autonomous_queries`: Toggle for ReAct tool use (SQLite, FAISS, Gated file paginators).
+* `enable_dynamic_delegation`: Toggle for hierarchical subagent tree spawning.
+* `enable_budget_monitoring`: Toggle for Supervisor Agent budget tracking.
+
 ## Commit Replay Recovery
 
 * `chapter_commits` now tracks `error_message`, `replay_count`, and `last_replayed_at`.

@@ -137,3 +137,17 @@ AUTO_GENERATION_MAX_RETRIES = int(_get("workflow", "auto_generation_max_retries"
 LANGUAGE_REWRITE_MAX_ATTEMPTS = int(_get("workflow", "language_rewrite_max_attempts", 2))
 CONFLICT_DISCUSSION_ROUNDS = int(_get("workflow", "conflict_discussion_rounds", 2))
 BLOCKING_CONFLICT_MODE = str(_get("workflow", "blocking_conflict_mode", "manual_block")).lower()
+
+# =============================
+# Autonomy / Delegation Controls
+# =============================
+ENABLE_AUTONOMY_SUITE = bool(_get("autonomy", "enable_autonomy_suite", False))
+ENABLE_AUTONOMOUS_QUERIES = bool(_get("autonomy", "enable_autonomous_queries", False))
+ENABLE_DYNAMIC_DELEGATION = bool(_get("autonomy", "enable_dynamic_delegation", False))
+MAX_DELEGATION_DEPTH = int(_get("autonomy", "max_delegation_depth", 2))
+MAX_SUBAGENT_TEAM_SIZE = int(_get("autonomy", "max_subagent_team_size", 3))
+SUBAGENT_DISCUSSION_ROUNDS = int(_get("autonomy", "subagent_discussion_rounds", 1))
+LARGE_FILE_THRESHOLD_KB = int(_get("autonomy", "large_file_threshold_kb", 50))
+MAX_CHUNK_LINES = int(_get("autonomy", "max_chunk_lines", 100))
+ENABLE_BUDGET_MONITORING = bool(_get("autonomy", "enable_budget_monitoring", False))
+TOTAL_TOKEN_BUDGET_USD = float(_get("autonomy", "total_token_budget_usd", 1.00))

@@ -25,6 +25,7 @@ from workflow_components.planning_mixin import PlanningWorkflowMixin
 from workflow_components.writing_mixin import WritingWorkflowMixin
 from workflow_components.scanning_mixin import ScanningWorkflowMixin
 from workflow_components.conflict_resolver import ConflictResolverWorkflowMixin
+from workflow_components.autonomy_mixin import AutonomyWorkflowMixin
 
 class WorkflowManager(
     WorkflowResumeMixin,
@@ -34,7 +35,8 @@ class WorkflowManager(
     PlanningWorkflowMixin,
     WritingWorkflowMixin,
     ScanningWorkflowMixin,
-    ConflictResolverWorkflowMixin
+    ConflictResolverWorkflowMixin,
+    AutonomyWorkflowMixin
 ):
     def __init__(self):
         self.logger = logging.getLogger("WorkflowManager")
@@ -52,6 +54,8 @@ class WorkflowManager(
         
         self.ai_resolve_conflicts = False
         self.in_auto_mode = False
+        
+        self.initialize_autonomy()
         
         # Setup get_embedding proxy wrapper for validation
         original_get_embedding = self.embedding_client.get_embedding

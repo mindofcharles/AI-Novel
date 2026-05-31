@@ -27,7 +27,8 @@ Many thanks to Gemini and GPT for their help!
 * **Atomic Memory Transactions:** Synchronized SQLite and FAISS commits with index cloning and automated rollback on `BLOCKING` conflicts.
 * **Deep Interruption Recovery:** Exhaustive integrity validation of all runtime artifacts before resuming.
 * **Language Guard:** Automatic confidence-based language detection and rewrite loop.
-* **Conflict Severity Levels:** Conflicts are classified as `BLOCKING` or `NON_BLOCKING` for safer automation.
+* **Conflict Severity Levels & Multi-Agent Debate Resolver**: Spawns specialized Cooperative Discussion Panels (Planner, Critic, Scanner) to negotiate and resolve blocking conflicts with fail-fast standoff boundaries.
+* **High-Level AI Autonomy & Subagent Delegation**: Enables autonomous ReAct tool use (SQLite, FAISS, Gated file paginators), hierarchical subagent dispatch (Max Depth = 2), sibling communication broker queues, and observer Supervisor Auditor Agent (policing costs and interjecting circular lock overrides).
 
 ## Installation
 

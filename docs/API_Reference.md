@@ -239,3 +239,115 @@ When continuous loops (`--auto`) or the explicit CLI flag `--ai-resolve-conflict
   * Spawns Critic, Scanner, and Planner LLM clients to debate across $N$ rounds.
   * Parses final JSON payload, executes the safe transaction block, and records transcripts.
   * Returns `True` on successful resolution, `False` on standoff.
+
+## `src.autonomy`
+
+This package handles autonomous ReAct reasoning loops, dynamic hierarchical subagent trees, gated file reading to protect LLM context windows, sibling agent communication, and non-participating supervisor auditing.
+
+### `GatedFileReader`
+
+Handles file reading with size-aware boundaries, returning outlines or chunked line paginations.
+
+**Constructor:**
+
+```python
+reader = GatedFileReader(large_threshold_kb: int = 50, max_chunk: int = 100)
+```
+
+* `large_threshold_kb`: Threshold in kilobytes. Files larger than this will return an outline warning if read directly without pagination.
+* `max_chunk`: Maximum number of lines returned in a single slice read.
+
+**Methods:**
+
+* `read_file(path: str, start_line: int = 1, end_line: Optional[int] = None) -> str`
+  * Reads a file. If the file size exceeds the threshold and no `end_line` is specified, it returns a structured fallback warning outlining file details and first 5 lines.
+  * If `end_line` is provided, reads and returns lines within the window (capped at `max_chunk` lines).
+* `read_file_tail(path: str, line_count: int = 50) -> str`
+  * Reads and returns only the last `line_count` lines of a file, suitable for logs or continuous files.
+
+---
+
+### `MessageBroker`
+
+Coordinates message dispatch and routing between parent, child, and sibling peer nodes.
+
+**Constructor:**
+
+```python
+broker = MessageBroker()
+```
+
+**Methods:**
+
+* `register_node(node: Any)`
+  * Registers an active `AgentNode` on the broker to enable addressing and routing.
+* `set_supervisor(supervisor: Any)`
+  * Registers the `SupervisorAgent` to audit all routed message traffic.
+* `send(sender: str, recipient: str, msg_type: str, payload: dict)`
+  * Routes a message from `sender` to `recipient`. If a supervisor is registered, routes the message to the supervisor for auditing first (except when the sender is the Supervisor itself, preventing infinite recursion).
+
+---
+
+### `AgentNode`
+
+Represents an active, self-aware agent in the hierarchical execution tree, capable of spawning child agents and running tasks inside a bounded ReAct reasoning loop.
+
+**Constructor:**
+
+```python
+node = AgentNode(
+    name: str,
+    role: str,
+    depth: int,
+    parent: Optional[AgentNode] = None,
+    max_depth: int = 2,
+    llm_client: Optional[Any] = None,
+    tools: Optional[Dict[str, Any]] = None,
+    broker: Optional[Any] = None
+)
+```
+
+* `name`: Unique name of the node.
+* `role`: System role and behavior profile.
+* `depth`: Active spawning depth of this node.
+* `parent`: Reference to parent `AgentNode` or `None`.
+* `max_depth`: Hard limit on subagent spawning tree depth (default: 2).
+* `llm_client`: Generation client instance.
+* `tools`: Map of registered Python functions available for the agent's ReAct loop.
+* `broker`: MessageBroker instance.
+
+**Methods:**
+
+* `spawn_child(name: str, role: str, llm_client: Optional[Any] = None) -> AgentNode`
+  * Spawns a child node at `depth + 1`.
+  * If `depth >= max_depth`, blocks the spawn and dispatches a structured `delegate_escalation` message upward to its parent, throwing a `RuntimeError`.
+* `receive_message(message: dict)`
+  * Receives and appends a message payload to `self.message_inbox`.
+* `execute_task(task: str, max_steps: int = 5) -> str`
+  * Executes a task using a bounded ReAct reasoning loop.
+  * Injects a specialized runtime **Agent Identity Profile Header** to enforce prompt discipline.
+  * Alternates between `Thought: ...` reasoning and `Action: {"tool": "TOOL_NAME", "arguments": {...}}` execution until `Final Answer: ...` is returned or `max_steps` is exhausted.
+
+---
+
+### `SupervisorAgent`
+
+A non-participating observer agent that subscribes to all broker traffic, monitoring total token costs and analyzing debate transcripts for circular deadlocks.
+
+**Constructor:**
+
+```python
+supervisor = SupervisorAgent(broker: Any, budget_limit_usd: float = 1.00)
+```
+
+* `broker`: MessageBroker instance. Registers itself as the broker's active supervisor.
+* `budget_limit_usd`: Session token cost limit.
+
+**Methods:**
+
+* `audit_message(sender: str, recipient: str, msg_type: str, payload: dict)`
+  * Audits messages passing through the broker.
+  * If cost exceeds `budget_limit_usd`, triggers an `EARLY_TERMINATION` command intervention.
+  * If a `debate_round_argument` message is received, analyzes debate texts over a sliding 3-turn window using word-overlap lexical similarity (> 75%). Triggers an `INTERJECT_PROMPT` command intervention on circular deadlock to force the Planner to synthesize a compromise.
+* `trigger_intervention(command: str, target: str, reason: str)`
+  * Sends an overriding supervisor intervention command (`INTERJECT_PROMPT`, `EARLY_TERMINATION`, `PRUNE_NODE`) to the target node via the broker.

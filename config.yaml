@@ -49,3 +49,18 @@ workflow:
   # - "auto_keep_existing": auto-resolve BLOCKING conflicts by keep_existing before gating.
   # - "manual_block": never auto-resolve BLOCKING conflicts; fail fast until resolved manually.
   blocking_conflict_mode: "manual_block"
+
+# ==========================================
+# Experimental AI Autonomy & Delegation
+# ==========================================
+autonomy:
+  enable_autonomy_suite: false          # Master toggle to enable/disable entire autonomy suite
+  enable_autonomous_queries: false      # Global toggle for tool use loops
+  enable_dynamic_delegation: false      # Global toggle for spawning subagents
+  max_delegation_depth: 2               # Depth 0 (root) -> Depth 1 (child) -> Depth 2 (grandchild)
+  max_subagent_team_size: 3             # Max sibling team size
+  subagent_discussion_rounds: 1         # Discussion rounds inside subagent panels
+  large_file_threshold_kb: 50           # Files larger than this return outline warning
+  max_chunk_lines: 100                  # Paginated lines per read request
+  enable_budget_monitoring: false       # Toggle to enable/disable supervisor budget monitoring
+  total_token_budget_usd: 1.00          # Supervisor termination budget cap per session

@@ -106,21 +106,39 @@ If you want fine-grained control, you can run steps individually:
 
 ## 5. Advanced Management
 
-### Conflict Triage
+### Conflict Triage & AI Debate Panel
 
-When the Scanner detects a change in the story's state (e.g., a character's relationship changes or a dead character appears), it evaluates the change:
+When the Scanner detects a semantic change in the story's state (e.g., a character's status changes or a strict rule is violated), it queues a **Conflict** in the database. The system offers multiple ways to resolve these:
 
-1. **LLM Arbiter (Auto-Resolution):** For plot-dependent changes like `relationship_type_change` or `status_dead_to_alive`, the system sends the full chapter text and the conflicting states to an LLM Arbiter. If the Arbiter determines this is a "reasonable plot progression" (e.g., enemies becoming friends), the conflict is automatically resolved and the database is updated.
-2. **Manual Triage:** If the Arbiter determines it's a true contradiction (e.g., a character resurrecting with no plot explanation), or for other strict rule violations, it creates a **Conflict** that requires your intervention.
+1. **Multi-Agent Cooperative Debate Panel (Recommended)**:
+   Enabled automatically in `--auto` mode or by passing the `--ai-resolve-conflicts` CLI flag. The system spawns a background discussion panel composed of:
+   * **Critic (Historian)**: Argues for world-bible consistency and database integrity (`keep_existing`).
+   * **Scanner (Prose Advocate)**: Argues in favor of new creative directions in the prose (`apply_incoming`).
+   * **Planner (Arbitrator)**: Moderates the panel over a set number of rounds and makes the final executive decision.
 
-* **List Conflicts**: `python src/main.py --conflicts-triage`
-* **Resolve a Conflict**:
+   If they fail to reach a unanimous decision in exactly $N$ rounds (configured via `conflict_discussion_rounds`), a **Fail-Fast Standoff** is triggered, raising a `RuntimeError` to halt writing and keep your database pristine. Full transcripts are documented under `novel/process/discussions/conflict_{id}_resolution_discussion.md`.
 
-  ```bash
-  python src/main.py --resolve-conflict <ID> keep_existing
-  ```
+2. **Standard Automatic Triage**:
+   Controlled by `blocking_conflict_mode` in `config.yaml`:
+   * `auto_keep_existing`: Automatically resolves blocking conflicts via `keep_existing` during scan gates.
+   * `manual_block`: Halts continuous loops, forcing manual resolution.
 
-  Use `keep_existing` to ignore the new fact or `apply_incoming` to overwrite the memory.
+3. **Manual Override Triage**:
+   * **List Conflicts**: `python src/main.py --conflicts-triage`
+   * **Resolve a Conflict**:
+
+     ```bash
+     python src/main.py --resolve-conflict <ID> <keep_existing|apply_incoming>
+     ```
+
+### High-Level AI Autonomy & Subagent Delegation
+
+For complex background research, the system supports dynamic AI delegation and tool use. This is disabled by default and can be customized in `config.yaml`:
+
+* **`enable_autonomy_suite: false`**: Toggle to enable or disable the entire autonomy suite.
+* **`enable_autonomous_queries: false`**: Allows AI agents to run ReAct loops executing SQLite/FAISS vector searches and paginated gated file lookups in the background.
+* **`enable_dynamic_delegation: false`**: Allows agents to spawn hierarchical child specialists and grandchild nodes (Max Spawning Depth = 2) to offload complex tasks, routing communications via a Message Broker.
+* **`enable_budget_monitoring: false`**: Toggles Supervisor observer cost auditing ($1.00 budget limit) and circular debate interjection prompts.
 
 ### Recovery from Failures
 
