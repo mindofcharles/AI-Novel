@@ -27,6 +27,10 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
         self._in_batch = False
         self._faiss_dirty = False
         self._faiss_backup = None
+        self.db_committee = None
+        
+    def set_db_committee(self, db_committee):
+        self.db_committee = db_committee
         
         db_dir = os.path.dirname(self.db_path)
         if db_dir:

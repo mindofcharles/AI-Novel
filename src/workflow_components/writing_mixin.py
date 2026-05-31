@@ -36,100 +36,52 @@ class WritingWorkflowMixin:
 
     def _review_and_revise_chapter(self, chapter_num: int, guide: str, chapter_text: str, prompts: Dict[str, str]) -> Tuple[str, str]:
         current_text = chapter_text
-        latest_review = ""
         rounds = max(0, config.CHAPTER_TEXT_DISCUSSION_ROUNDS)
-        self._append_structured_discussion(
-            phase_type="chapter_text",
-            role="Writer",
-            prompt_text=f"chapter_{self._num3(chapter_num)}_draft_ready",
-            response_text=current_text,
-            chapter_num=chapter_num,
-            round_index=0,
-            decision="chapter_draft_ready",
-            needs_revision=None,
-            artifact_paths=[self.get_chapter_path(chapter_num)],
+        self.logger.info(f"Spawning Chapter Editorial Committee to review and revise Ch {chapter_num}...")
+        
+        from att.presets import get_preset
+        preset = get_preset("editorial")
+        
+        team = self.att_manager.create_agent_team(
+            creator=self.att_manager.root_ai,
+            member_count=3,
+            roles_and_presets=preset["roles"],
+            preset_name="editorial",
+            system_instructions=preset["system_instructions"]
         )
-        for round_idx in range(rounds):
-            review = self._critic_review_chapter(chapter_num, guide, current_text, prompts)
-            latest_review = review
-            if not self._needs_revision(review):
-                self._append_structured_discussion(
-                    phase_type="chapter_text",
-                    role="Critic",
-                    prompt_text=f"chapter_{self._num3(chapter_num)}_review",
-                    response_text=review,
-                    chapter_num=chapter_num,
-                    round_index=round_idx + 1,
-                    decision="review_pass_no_revision",
-                    needs_revision=False,
-                    artifact_paths=[self.get_chapter_path(chapter_num)],
-                )
-                break
+
+        prompt = (
+            f"Please review and revise the draft for Chapter {chapter_num}.\n\n"
+            f"Chapter Writing Contract:\n{guide}\n\n"
+            f"Current Chapter Draft:\n{current_text}\n\n"
+            f"Style_Critic must critique style and voice, "
+            f"Creative_Writer must revise prose blocks, "
+            f"and Editor_In_Chief must compile the comments and write the final polished prose draft (specifying 'Final Answer: <polished text>')."
+        )
+
+        try:
+            transcript = self.att_manager.execute_team_discussion(team, prompt, rounds=rounds)
+            if "final answer:" in transcript.lower():
+                final_text = transcript.split("Final Answer:", 1)[1].strip()
+            else:
+                final_text = current_text
+                
+            self._save_file(f"chapter_{self._num3(chapter_num)}.md", final_text, self.chapters_dir)
             self._append_structured_discussion(
                 phase_type="chapter_text",
-                role="Critic",
-                prompt_text=f"chapter_{self._num3(chapter_num)}_review",
-                response_text=review,
+                role="Chapter_Editorial_Committee",
+                prompt_text=prompt,
+                response_text=final_text,
                 chapter_num=chapter_num,
-                round_index=round_idx + 1,
-                decision="review_requests_revision",
-                needs_revision=True,
+                round_index=rounds,
+                decision="chapter_text_finalized",
+                needs_revision=False,
                 artifact_paths=[self.get_chapter_path(chapter_num)],
             )
-
-            revise_instruction = get_resource("prompt.writer_revise")
-            revise_instruction += f"\n{self._language_rule()}"
-            contract_label = get_resource("label.contract")
-            chapter_label = get_resource("label.current_chapter")
-            critique_label = get_resource("label.critique")
-            revise_prompt = (
-                f"{contract_label}:\n{guide}\n\n"
-                f"{chapter_label}:\n{current_text}\n\n"
-                f"{critique_label}:\n{review}\n\n{revise_instruction}"
-            )
-            try:
-                revised = self.writer_client.generate(
-                    prompt=revise_prompt,
-                    system_instruction=prompts["writer"],
-                )
-            except LLMClientError as e:
-                raise RuntimeError(str(e)) from e
-            revised = self._enforce_output_language(
-                self.writer_client, "Writer", revised, prompts["writer"], chapter_num=chapter_num
-            )
-            self._log_llm_interaction(
-                role="Writer",
-                phase=f"Chapter {self._num3(chapter_num)} Revision Round {round_idx + 1}",
-                prompt=revise_prompt,
-                response=revised,
-                system_instruction=prompts["writer"],
-                chapter_num=chapter_num,
-            )
-            current_text = revised
-            self._save_file(
-                f"chapter_{self._num3(chapter_num)}_revision_round_{self._num3(round_idx + 1)}.md",
-                revised,
-                self.revisions_dir,
-            )
-            self._save_file(f"chapter_{self._num3(chapter_num)}.md", current_text, self.chapters_dir)
-            self._append_structured_discussion(
-                phase_type="chapter_text",
-                role="Writer",
-                prompt_text=revise_prompt,
-                response_text=current_text,
-                chapter_num=chapter_num,
-                round_index=round_idx + 1,
-                decision="chapter_revision_applied",
-                needs_revision=True,
-                artifact_paths=[
-                    self.get_chapter_path(chapter_num),
-                    os.path.join(
-                        self.revisions_dir,
-                        f"chapter_{self._num3(chapter_num)}_revision_round_{self._num3(round_idx + 1)}.md",
-                    ),
-                ],
-            )
-        return current_text, latest_review
+            return final_text, "Review completed and approved by Chapter Editorial Committee."
+        except Exception as e:
+            self.logger.warning(f"Chapter Editorial Committee execution failed, using initial draft: {e}")
+            return current_text, f"Editorial committee review bypassed due to error: {e}"
 
     def write_chapter(self, chapter_num: int, guide_content: str) -> str:
         self.logger.info(f"Writing Chapter {chapter_num}...")

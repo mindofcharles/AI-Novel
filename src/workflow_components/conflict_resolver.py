@@ -5,42 +5,14 @@ import logging
 from typing import Dict, Optional, List
 
 import config
-
-CRITIC_SYSTEM_INSTRUCTION = (
-    "You are the Critic (Historian) on a Multi-Agent Narrative Consensus Panel.\n"
-    "Your primary objective is to defend historical continuity, spatiotemporal logic, database integrity, and existing established facts in the world.\n"
-    "You are highly skeptical of new changes that contradict established facts (such as a character who died suddenly reviving without explanation, or relationships shifting overnight without foundation).\n"
-    "You must argue why we should keep the existing facts (action: keep_existing) or point out potential issues with accepting the incoming facts.\n"
-    "Always base your arguments on the provided global rules, character histories, and chapter prose. Keep your tone analytical, precise, and professional."
-)
-
-SCANNER_SYSTEM_INSTRUCTION = (
-    "You are the Scanner (Prose Advocate) on a Multi-Agent Narrative Consensus Panel.\n"
-    "Your primary objective is to defend the creative choices made in the newly generated prose, narrative momentum, character progression, and the scanned incoming facts.\n"
-    "You argue why we should apply the incoming facts (action: apply_incoming) because they represent the dynamic flow of the story and the active choices of the writer.\n"
-    "You explain why the change makes creative sense or how the story context justifies it.\n"
-    "Always base your arguments on the newly generated chapter prose and the surrounding context. Keep your tone creative, narrative-focused, and persuasive."
-)
-
-PLANNER_SYSTEM_INSTRUCTION = (
-    "You are the Planner (Arbitrator) on a Multi-Agent Narrative Consensus Panel.\n"
-    "Your objective is to lead the panel, moderate the debate between the Critic (Historian) and the Scanner (Prose Advocate), and build a consensus or creative compromise.\n"
-    "In the final round, you must make the final executive decision and output exactly a JSON payload choosing one of two actions: \"keep_existing\" or \"apply_incoming\".\n\n"
-    "Your output format for the final round MUST be a valid JSON block containing:\n"
-    "{\n"
-    "  \"action\": \"keep_existing\" | \"apply_incoming\",\n"
-    "  \"reasoning\": \"Detailed logical and narrative reasoning behind the choice.\",\n"
-    "  \"narrative_compromise\": \"Suggested prose adjustments or explanation to bridge the gap.\"\n"
-    "}\n"
-    "Do not include any other text besides the JSON block. Ensure the JSON is perfectly formatted."
-)
+from att.presets import get_preset
 
 class ConflictResolverWorkflowMixin:
-    """Mixin implementing the Multi-Agent Debate Conflict Resolver."""
+    """Mixin implementing the ATT-driven Conflict Resolution Committee."""
 
     def ai_debate_resolve_conflict(self, conflict_id: int) -> bool:
         """
-        Spawns the Multi-Agent Debate Panel (Planner, Critic, Scanner)
+        Spawns the dynamic 3-AI Conflict Resolution Committee AT
         to resolve the given conflict in a bounded debate loop.
         """
         row = self.memory.get_conflict_by_id(conflict_id)
@@ -68,7 +40,7 @@ class ConflictResolverWorkflowMixin:
             rounds = 1
 
         self.logger.info(f"[AUTO] Conflict detected in Ch {chapter_num} scan: {conflict_type} ({entity_type} {entity_key}).")
-        self.logger.info("[AUTO] Spawning Triage Panel (Planner, Critic, Scanner)...")
+        self.logger.info("[AUTO] Spawning ATT Conflict Resolution Committee...")
 
         # 1. Deep Context Window Construction
         context_markdown = self._assemble_deep_context(
@@ -83,76 +55,51 @@ class ConflictResolverWorkflowMixin:
             blocking_level=blocking_level
         )
 
-        # 2. Bounded Debate Loop
-        transcript = []
-        planner_decision = None
+        # 2. Dynamic AT Spawning via ATT
+        preset = get_preset("conflict_resolution")
+        team = self.att_manager.create_agent_team(
+            creator=self.att_manager.root_ai,
+            member_count=3,
+            roles_and_presets=preset["roles"],
+            preset_name="conflict_resolution",
+            system_instructions=preset["system_instructions"]
+        )
 
-        for round_idx in range(1, rounds + 1):
-            is_final_round = (round_idx == rounds)
+        prompt = (
+            f"Please resolve the narrative conflict detailed below:\n\n"
+            f"{context_markdown}\n\n"
+            f"Discuss the best approach. Historian_Critic should present continuity points, "
+            f"Prose_Scanner should present creative pros, and Consensus_Planner must arbitrate "
+            f"and make the final decision in JSON format choosing exactly 'keep_existing' or 'apply_incoming'."
+        )
 
-            # A. Critic Turn
-            self.logger.info(f"[AUTO] Round {round_idx}/{rounds}: Critic is analyzing continuity & rule constraints...")
-            critic_prompt = self._build_critic_prompt(context_markdown, transcript, round_idx, is_final_round)
-            critic_arg = self.critic_client.generate(
-                prompt=critic_prompt,
-                system_instruction=CRITIC_SYSTEM_INSTRUCTION,
-                temperature=0.7
-            ).strip()
-            transcript.append(f"#### Round {round_idx} - Critic (Historian) Argument:\n{critic_arg}\n")
+        # 3. Bounded Debate Loop
+        try:
+            transcript_text = self.att_manager.execute_team_discussion(team, prompt, rounds=rounds)
+            planner_decision = self._extract_json(transcript_text)
+        except Exception as e:
+            self.logger.error(f"[AUTO] ATT debate failed: {e}")
+            return False
 
-            # B. Scanner Turn
-            self.logger.info(f"[AUTO] Round {round_idx}/{rounds}: Scanner is defending new prose intentions...")
-            scanner_prompt = self._build_scanner_prompt(context_markdown, transcript, round_idx, is_final_round)
-            scanner_arg = self.scanner_client.generate(
-                prompt=scanner_prompt,
-                system_instruction=SCANNER_SYSTEM_INSTRUCTION,
-                temperature=0.7
-            ).strip()
-            transcript.append(f"#### Round {round_idx} - Scanner (Prose Advocate) Argument:\n{scanner_arg}\n")
-
-            # C. Planner Turn
-            if is_final_round:
-                self.logger.info(f"[AUTO] Round {round_idx}/{rounds}: Planner is synthesizing the final narrative consensus...")
-                planner_prompt = self._build_planner_final_prompt(context_markdown, transcript, round_idx)
-                planner_res = self.planner_client.generate(
-                    prompt=planner_prompt,
-                    system_instruction=PLANNER_SYSTEM_INSTRUCTION,
-                    temperature=0.3,
-                    require_json=True
-                ).strip()
-                transcript.append(f"#### Round {round_idx} - Planner (Arbitrator - FINAL DECISION):\n{planner_res}\n")
-                
-                # Extract and parse the final JSON decision
-                planner_decision = self._extract_json(planner_res)
-            else:
-                self.logger.info(f"[AUTO] Round {round_idx}/{rounds}: Planner is arbitrating and summarizing points...")
-                planner_prompt = self._build_planner_summary_prompt(context_markdown, transcript, round_idx)
-                planner_res = self.planner_client.generate(
-                    prompt=planner_prompt,
-                    system_instruction=PLANNER_SYSTEM_INSTRUCTION,
-                    temperature=0.7
-                ).strip()
-                transcript.append(f"#### Round {round_idx} - Planner (Arbitrator - Round Summary):\n{planner_res}\n")
-
-        # 3. Consensus Gating & Mutative Commit
+        # 4. Consensus Gating & Mutative Commit
         if not planner_decision or "action" not in planner_decision:
-            self.logger.error("[AUTO] Planner failed to output a parseable JSON decision block in the final round.")
-            self._write_discussion_log(conflict_id, context_markdown, transcript, "STANDOFF", None)
+            self.logger.error("[AUTO] Committee failed to output a parseable JSON decision block.")
+            self._write_discussion_log(conflict_id, context_markdown, [transcript_text], "STANDOFF", None)
             return False
 
         action = str(planner_decision.get("action")).strip().lower()
-        reasoning = planner_decision.get("reasoning", "No detailed reasoning provided by Planner.")
+        reasoning = planner_decision.get("reasoning", "No detailed reasoning provided by Committee.")
         compromise = planner_decision.get("narrative_compromise", "")
 
         if action not in {"keep_existing", "apply_incoming"}:
-            self.logger.error(f"[AUTO] Planner output invalid consensus action: '{action}'. Must be keep_existing or apply_incoming.")
-            self._write_discussion_log(conflict_id, context_markdown, transcript, "STANDOFF", planner_decision)
+            self.logger.error(f"[AUTO] Committee output invalid consensus action: '{action}'. Must be keep_existing or apply_incoming.")
+            self._write_discussion_log(conflict_id, context_markdown, [transcript_text], "STANDOFF", planner_decision)
             return False
 
         # Consensus agreed! Apply the transaction atomically
         resolver_note = (
-            f"resolved via Multi-Agent Debate Consensus.\n"
-            f"Planner Choice: {action}\n"
+            f"resolved via ATT Conflict Resolution Committee.\n"
+            f"Committee Choice: {action}\n"
             f"Reasoning: {reasoning}\n"
             f"Narrative Compromise: {compromise}"
         )
@@ -166,11 +113,11 @@ class ConflictResolverWorkflowMixin:
         )
 
         if ok:
-            self._write_discussion_log(conflict_id, context_markdown, transcript, "RESOLVED", planner_decision)
+            self._write_discussion_log(conflict_id, context_markdown, [transcript_text], "RESOLVED", planner_decision)
             return True
         else:
             self.logger.error(f"[AUTO] Database transaction failed while applying action '{action}' for conflict #{conflict_id}.")
-            self._write_discussion_log(conflict_id, context_markdown, transcript, "TRANSACTION_FAILED", planner_decision)
+            self._write_discussion_log(conflict_id, context_markdown, [transcript_text], "TRANSACTION_FAILED", planner_decision)
             return False
 
     def _assemble_deep_context(
@@ -240,7 +187,6 @@ class ConflictResolverWorkflowMixin:
         events_list = []
         events = self.memory.get_events(limit=10)
         for ev in events:
-            # id, event_name, description, timestamp_str, impact_level, related_entities, location
             events_list.append(
                 f"- Event: {ev[1]} | Description: {ev[2]} | Time: {ev[3]} | "
                 f"Impact: {ev[4]} | Entities: {ev[5]} | Location: {ev[6]}"
@@ -281,64 +227,6 @@ class ConflictResolverWorkflowMixin:
             f"{world_rules}\n\n"
             f"### Last 10 Timeline Events:\n"
             f"{timeline_events}"
-        )
-
-    def _build_critic_prompt(self, context: str, transcript: List[str], round_idx: int, is_final: bool) -> str:
-        transcript_str = "\n".join(transcript) if transcript else "*No preceding arguments yet.*"
-        final_instruction = (
-            "\nProvide your final, decisive arguments, synthesizing why accepted rules and past continuity must be protected."
-            if is_final else "\nMake your arguments outlining continuity concerns and spatiotemporal database integrity risks."
-        )
-        return (
-            f"{context}\n\n"
-            f"--- DEBATE HISTORY ---\n"
-            f"{transcript_str}\n\n"
-            f"--- YOUR MISSION (ROUND {round_idx}) ---\n"
-            f"You are the Critic (Historian). Analyze the conflict and any ongoing arguments above.{final_instruction}"
-        )
-
-    def _build_scanner_prompt(self, context: str, transcript: List[str], round_idx: int, is_final: bool) -> str:
-        transcript_str = "\n".join(transcript) if transcript else "*No preceding arguments yet.*"
-        final_instruction = (
-            "\nProvide your final, decisive arguments, synthesizing why the writer's creative prose direction is justified and must be preserved."
-            if is_final else "\nMake your arguments explaining the narrative weight, prose benefits, and setup that justifies this change."
-        )
-        return (
-            f"{context}\n\n"
-            f"--- DEBATE HISTORY ---\n"
-            f"{transcript_str}\n\n"
-            f"--- YOUR MISSION (ROUND {round_idx}) ---\n"
-            f"You are the Scanner (Prose Advocate). Review the context and Critic's arguments above.{final_instruction}"
-        )
-
-    def _build_planner_summary_prompt(self, context: str, transcript: List[str], round_idx: int) -> str:
-        transcript_str = "\n".join(transcript)
-        return (
-            f"{context}\n\n"
-            f"--- DEBATE HISTORY ---\n"
-            f"{transcript_str}\n\n"
-            f"--- YOUR MISSION (ROUND {round_idx}) ---\n"
-            f"You are the Planner (Arbitrator). Summarize the arguments of the Critic and Scanner in this round. "
-            f"Point out compromise avenues. Do NOT output a final JSON choice yet; wait until the final round."
-        )
-
-    def _build_planner_final_prompt(self, context: str, transcript: List[str], round_idx: int) -> str:
-        transcript_str = "\n".join(transcript)
-        return (
-            f"{context}\n\n"
-            f"--- DEBATE HISTORY ---\n"
-            f"{transcript_str}\n\n"
-            f"--- YOUR MISSION (ROUND {round_idx} - FINAL DECISION) ---\n"
-            f"You are the Planner (Arbitrator). The debate is concluded. You must make the final decision.\n"
-            f"Select EXACTLY one action: 'keep_existing' (historian's victory) or 'apply_incoming' (scanner's victory).\n"
-            f"Provide a clear narrative justification and suggest a prose compromise to bridge the narrative transition.\n\n"
-            f"Output your decision in a strict JSON payload block:\n"
-            f"{{\n"
-            f"  \"action\": \"keep_existing\" | \"apply_incoming\",\n"
-            f"  \"reasoning\": \"Your detailed narrative justification...\",\n"
-            f"  \"narrative_compromise\": \"Your suggested narrative bridge...\"\n"
-            f"}}\n"
-            f"Do not include any other markdown formatting or prefix/suffix outside the JSON object itself."
         )
 
     def _write_discussion_log(

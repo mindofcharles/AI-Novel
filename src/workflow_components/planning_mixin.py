@@ -9,77 +9,49 @@ from workflow_components.resources import get_resource
 class PlanningWorkflowMixin:
     def _refine_chapter_guide_with_discussion(self, chapter_num: int, guide: str, prompts: Dict[str, str]) -> str:
         rounds = max(0, config.CHAPTER_GUIDE_DISCUSSION_ROUNDS)
-        current_guide = guide
-        self._append_structured_discussion(
-            phase_type="guide",
-            role="Planner",
-            prompt_text=f"initial_chapter_guide_chapter_{self._num3(chapter_num)}",
-            response_text=current_guide,
-            chapter_num=chapter_num,
-            round_index=0,
-            decision="guide_draft_ready",
-            needs_revision=None,
-            artifact_paths=[self.get_guide_path(chapter_num)],
+        self.logger.info(f"Spawning Chapter Planning Committee to refine guide for Ch {chapter_num}...")
+        
+        from att.presets import get_preset
+        preset = get_preset("planning")
+        
+        team = self.att_manager.create_agent_team(
+            creator=self.att_manager.root_ai,
+            member_count=3,
+            roles_and_presets=preset["roles"],
+            preset_name="planning",
+            system_instructions=preset["system_instructions"]
         )
-        for i in range(rounds):
-            critique_prompt = get_resource("prompt.planner_critique", guide=current_guide)
-            critique_prompt += f"\n\n{self._language_rule()}"
-            critique = self.critic_client.generate(
-                prompt=critique_prompt,
-                system_instruction=prompts["critic"],
-            )
-            critique = self._enforce_output_language(
-                self.critic_client, "Critic", critique, prompts["critic"], chapter_num=chapter_num
-            )
-            self._log_llm_interaction(
-                role="Critic",
-                phase=f"Chapter {self._num3(chapter_num)} Guide Critique Round {i + 1}",
-                prompt=critique_prompt,
-                response=critique,
-                system_instruction=prompts["critic"],
-                chapter_num=chapter_num,
-            )
-            self._append_structured_discussion(
-                phase_type="guide",
-                role="Critic",
-                prompt_text=critique_prompt,
-                response_text=critique,
-                chapter_num=chapter_num,
-                round_index=i + 1,
-                decision="guide_critique_generated",
-                needs_revision=True,
-                artifact_paths=[self.get_guide_path(chapter_num)],
-            )
 
-            revise_prompt = get_resource("prompt.planner_revise", current_guide=current_guide, critique=critique)
-            revise_prompt += f"\n\n{self._language_rule()}"
-            current_guide = self.planner_client.generate(
-                prompt=revise_prompt,
-                system_instruction=prompts["planner"],
-            )
-            current_guide = self._enforce_output_language(
-                self.planner_client, "Planner", current_guide, prompts["planner"], chapter_num=chapter_num
-            )
-            self._log_llm_interaction(
-                role="Planner",
-                phase=f"Chapter {self._num3(chapter_num)} Guide Revision Round {i + 1}",
-                prompt=revise_prompt,
-                response=current_guide,
-                system_instruction=prompts["planner"],
-                chapter_num=chapter_num,
-            )
+        prompt = (
+            f"Please refine the initial chapter guide for Chapter {chapter_num}.\n\n"
+            f"Initial Chapter Guide:\n{guide}\n\n"
+            f"Continuity_Auditor must check for timeline coherence, "
+            f"Structural_Planner must optimize pacing and scene structures, "
+            f"and Reviewer_Arbitrator must integrate the refinements and produce the finalized guide."
+        )
+
+        try:
+            transcript = self.att_manager.execute_team_discussion(team, prompt, rounds=rounds)
+            if "final answer:" in transcript.lower():
+                final_guide = transcript.split("Final Answer:", 1)[1].strip()
+            else:
+                final_guide = guide
+                
             self._append_structured_discussion(
                 phase_type="guide",
-                role="Planner",
-                prompt_text=revise_prompt,
-                response_text=current_guide,
+                role="Chapter_Planning_Committee",
+                prompt_text=prompt,
+                response_text=final_guide,
                 chapter_num=chapter_num,
-                round_index=i + 1,
-                decision="guide_revision_applied",
+                round_index=rounds,
+                decision="guide_finalized",
                 needs_revision=False,
                 artifact_paths=[self.get_guide_path(chapter_num)],
             )
-        return current_guide
+            return final_guide
+        except Exception as e:
+            self.logger.warning(f"Chapter Planning Committee execution failed, using initial guide: {e}")
+            return guide
 
     def generate_chapter_guide(self, chapter_num: int, previous_summary: str = None) -> str:
         self.logger.info(f"Generating guide for Chapter {chapter_num}...")

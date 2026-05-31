@@ -17,113 +17,53 @@ class ProjectWorkflowMixin:
         output_filename: str,
         prompts: Dict[str, str],
     ) -> str:
+        self.logger.info(f"Spawning Plot Outline Committee for phase: {phase_name}...")
+        
+        from att.presets import get_preset
+        preset = get_preset("plot_outline")
+        
+        team = self.att_manager.create_agent_team(
+            creator=self.att_manager.root_ai,
+            member_count=3,
+            roles_and_presets=preset["roles"],
+            preset_name="plot_outline",
+            system_instructions=preset["system_instructions"]
+        )
+
+        prompt = (
+            f"Please generate the outline for '{phase_name}'.\n\n"
+            f"Initial Context and Prompt:\n{draft_prompt}\n\n"
+            f"Narrative_Arc_Planner must design progression and character paths, "
+            f"Continuity_Critic must ensure cause-and-effect integrity, "
+            f"and Arc_Arbitrator must output the final polished outline block (specifying 'Final Answer: <outline content>')."
+        )
+
         try:
-            outline = self.planner_client.generate(
-                prompt=draft_prompt,
-                system_instruction=prompts["planner"],
-            )
-        except LLMClientError as e:
-            raise RuntimeError(str(e)) from e
-        outline = self._enforce_output_language(
-            self.planner_client,
-            "Planner",
-            outline,
-            prompts["planner"],
-            world_building=True,
-        )
-        self._log_llm_interaction(
-            role="Planner",
-            phase=f"{phase_name} Draft",
-            prompt=draft_prompt,
-            response=outline,
-            system_instruction=prompts["planner"],
-            world_building=True,
-        )
-
-        outline_path = self._save_file(output_filename, outline, self.plot_dir)
-        self._append_structured_discussion(
-            phase_type="plot",
-            role="Planner",
-            prompt_text=draft_prompt,
-            response_text=outline,
-            round_index=0,
-            decision=f"{phase_name}_draft_ready",
-            needs_revision=None,
-            artifact_paths=[outline_path],
-        )
-
-        for i in range(max(0, rounds)):
-            critique_prompt = get_resource("prompt.world_bible_draft_critique", world_bible=outline)
-            critique_prompt += f"\n\n{self._language_rule()}"
-            try:
-                critique = self.critic_client.generate(
-                    prompt=critique_prompt,
-                    system_instruction=prompts["critic"],
-                )
-            except LLMClientError as e:
-                raise RuntimeError(str(e)) from e
-            critique = self._enforce_output_language(
-                self.critic_client,
-                "Critic",
-                critique,
-                prompts["critic"],
-                world_building=True,
-            )
-            self._log_llm_interaction(
-                role="Critic",
-                phase=f"{phase_name} Critique Round {i + 1}",
-                prompt=critique_prompt,
-                response=critique,
-                system_instruction=prompts["critic"],
-                world_building=True,
-            )
+            transcript = self.att_manager.execute_team_discussion(team, prompt, rounds=rounds)
+            if "final answer:" in transcript.lower():
+                final_outline = transcript.split("Final Answer:", 1)[1].strip()
+            else:
+                final_outline = transcript
+                
+            outline_path = self._save_file(output_filename, final_outline, self.plot_dir)
             self._append_structured_discussion(
                 phase_type="plot",
-                role="Critic",
-                prompt_text=critique_prompt,
-                response_text=critique,
-                round_index=i + 1,
-                decision=f"{phase_name}_critique_generated",
-                needs_revision=True,
-                artifact_paths=[outline_path],
-            )
-
-            revise_prompt = revise_prompt_builder(outline, critique)
-            revise_prompt += f"\n\n{self._language_rule()}"
-            try:
-                outline = self.planner_client.generate(
-                    prompt=revise_prompt,
-                    system_instruction=prompts["planner"],
-                )
-            except LLMClientError as e:
-                raise RuntimeError(str(e)) from e
-            outline = self._enforce_output_language(
-                self.planner_client,
-                "Planner",
-                outline,
-                prompts["planner"],
-                world_building=True,
-            )
-            self._log_llm_interaction(
-                role="Planner",
-                phase=f"{phase_name} Revision Round {i + 1}",
-                prompt=revise_prompt,
-                response=outline,
-                system_instruction=prompts["planner"],
-                world_building=True,
-            )
-            outline_path = self._save_file(output_filename, outline, self.plot_dir)
-            self._append_structured_discussion(
-                phase_type="plot",
-                role="Planner",
-                prompt_text=revise_prompt,
-                response_text=outline,
-                round_index=i + 1,
-                decision=f"{phase_name}_revision_applied",
+                role="Plot_Outline_Committee",
+                prompt_text=prompt,
+                response_text=final_outline,
+                round_index=rounds,
+                decision=f"{phase_name}_finalized",
                 needs_revision=False,
                 artifact_paths=[outline_path],
             )
-        return outline
+            return final_outline
+        except Exception as e:
+            self.logger.warning(f"Plot Outline Committee execution failed, using direct generation: {e}")
+            try:
+                outline = self.planner_client.generate(prompt=draft_prompt, system_instruction=prompts["planner"])
+                return self._enforce_output_language(self.planner_client, "Planner", outline, prompts["planner"], world_building=True)
+            except Exception as err:
+                raise RuntimeError(str(err)) from err
 
     def start_new_project(self, user_instruction: str) -> str:
         self.logger.info(f"Starting new project ({config.LANGUAGE}) with instruction: {user_instruction}")
@@ -165,71 +105,48 @@ class ProjectWorkflowMixin:
         )
 
         rounds = max(0, config.WORLD_DISCUSSION_ROUNDS)
-        for i in range(rounds):
-            critique_prompt = get_resource("prompt.world_bible_draft_critique", world_bible=world_bible)
-            critique_prompt += f"\n\n{self._language_rule()}"
-            try:
-                critique = self.critic_client.generate(
-                    prompt=critique_prompt,
-                    system_instruction=prompts["critic"],
-                )
-            except LLMClientError as e:
-                raise RuntimeError(str(e)) from e
-            critique = self._enforce_output_language(
-                self.critic_client, "Critic", critique, prompts["critic"], world_building=True
-            )
-            self._log_llm_interaction(
-                role="Critic",
-                phase=f"World Building Critique Round {i + 1}",
-                prompt=critique_prompt,
-                response=critique,
-                system_instruction=prompts["critic"],
-                world_building=True,
-            )
-            self._append_structured_discussion(
-                phase_type="world",
-                role="Critic",
-                prompt_text=critique_prompt,
-                response_text=critique,
-                round_index=i + 1,
-                decision="world_bible_critique_generated",
-                needs_revision=True,
-                artifact_paths=[bible_path],
-            )
-            self._save_file("critique.md", critique, self.critiques_dir)
+        self.logger.info("Spawning World Bible Committee to refine World Bible...")
+        
+        from att.presets import get_preset
+        preset = get_preset("world_bible")
+        
+        team = self.att_manager.create_agent_team(
+            creator=self.att_manager.root_ai,
+            member_count=3,
+            roles_and_presets=preset["roles"],
+            preset_name="world_bible",
+            system_instructions=preset["system_instructions"]
+        )
 
-            revise_prompt = get_resource("prompt.world_bible_revise", world_bible=world_bible, critique=critique)
-            revise_prompt += f"\n\n{self._language_rule()}"
-            try:
-                revised = self.architect_client.generate(
-                    prompt=revise_prompt,
-                    system_instruction=prompts["architect"],
-                )
-            except LLMClientError as e:
-                raise RuntimeError(str(e)) from e
-            revised = self._enforce_output_language(
-                self.architect_client, "Architect", revised, prompts["architect"], world_building=True
-            )
-            self._log_llm_interaction(
-                role="Architect",
-                phase=f"World Building Revision Round {i + 1}",
-                prompt=revise_prompt,
-                response=revised,
-                system_instruction=prompts["architect"],
-                world_building=True,
-            )
-            world_bible = revised
+        prompt = (
+            f"Please refine the initial World Bible based on the user instruction.\n\n"
+            f"User Request:\n{user_instruction}\n\n"
+            f"Initial World Bible Draft:\n{world_bible}\n\n"
+            f"Lore_Architect must check lore rules and constraints, "
+            f"Narrative_Critic must check for logic gaps or bottlenecks, "
+            f"and World_Arbitrator must integrate the refinements and write the final polished World Bible (specifying 'Final Answer: <world bible content>')."
+        )
+
+        try:
+            transcript = self.att_manager.execute_team_discussion(team, prompt, rounds=rounds)
+            if "final answer:" in transcript.lower():
+                world_bible = transcript.split("Final Answer:", 1)[1].strip()
+            else:
+                world_bible = world_bible
+                
             bible_path = self._save_file("world_bible.md", world_bible, self.world_dir)
             self._append_structured_discussion(
                 phase_type="world",
-                role="Architect",
-                prompt_text=revise_prompt,
-                response_text=revised,
-                round_index=i + 1,
-                decision="world_bible_revision_applied",
+                role="World_Bible_Committee",
+                prompt_text=prompt,
+                response_text=world_bible,
+                round_index=rounds,
+                decision="world_bible_finalized",
                 needs_revision=False,
                 artifact_paths=[bible_path],
             )
+        except Exception as e:
+            self.logger.warning(f"World Bible Committee execution failed, using initial draft: {e}")
 
         plot_draft_prompt = get_resource("prompt.plot_outline_draft", world_bible=world_bible)
         plot_draft_prompt += f"\n\n{self._language_rule()}"
