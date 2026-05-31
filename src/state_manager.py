@@ -1,7 +1,6 @@
 import json
 from typing import Any, Dict, List, Optional
 
-import config
 from memory import MemoryManager
 
 from workflow_components.resources import get_resource
@@ -12,9 +11,15 @@ class StoryStateManager:
     Keeps database logic out of workflow orchestration code.
     """
 
-    def __init__(self, memory: MemoryManager, embedding_client: Any):
+    def __init__(
+        self,
+        memory: MemoryManager,
+        embedding_client: Any,
+        tier_3_search_limit: int = 5,
+    ):
         self.memory = memory
         self.embedding_client = embedding_client
+        self.tier_3_search_limit = tier_3_search_limit
 
     @staticmethod
     def _contains_token(text: str, token: str) -> bool:
@@ -219,7 +224,7 @@ class StoryStateManager:
             meta_filter = {"location": focus_locations[0]} if focus_locations else None
             hits = self.memory.search_semantic(
                 query_embedding,
-                k=max(config.TIER_3_SEARCH_LIMIT, 3),
+                k=max(self.tier_3_search_limit, 3),
                 filter_metadata=meta_filter,
             )
             for hit in hits:
@@ -304,7 +309,7 @@ class StoryStateManager:
             intent.get("focus_entities", []) or [],
             intent.get("focus_locations", []) or [],
         )
-        top_hits = ranked_hits[: config.TIER_3_SEARCH_LIMIT]
+        top_hits = ranked_hits[: self.tier_3_search_limit]
         semantic_summary = get_resource("ui.semantic_skipped")
         if intent.get("should_semantic"):
             semantic_summary = get_resource("ui.semantic_no_hits")
@@ -357,7 +362,7 @@ class StoryStateManager:
             intent.get("focus_entities", []) or [],
             intent.get("focus_locations", []) or [],
         )
-        return self._format_semantic_lines(intent, ranked[: config.TIER_3_SEARCH_LIMIT])
+        return self._format_semantic_lines(intent, ranked[: self.tier_3_search_limit])
 
     def apply_fact_payload(
         self,

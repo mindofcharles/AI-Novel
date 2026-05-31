@@ -5,6 +5,7 @@ import numpy as np
 from typing import List, Dict, Optional
 from memory_components.schema_mixin import MemorySchemaMixin
 from memory_components.conflict_commit_mixin import MemoryConflictCommitMixin
+from utils.helpers import get_nested, set_nested, normalize_text
 
 # Conditional import for FAISS
 try:
@@ -120,37 +121,7 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
                 merged[key] = value
         return merged
 
-    @staticmethod
-    def _get_nested(obj: Optional[Dict], path: str):
-        if not isinstance(obj, dict):
-            return None
-        cur = obj
-        parts = path.split(".")
-        for part in parts:
-            if not isinstance(cur, dict) or part not in cur:
-                return None
-            cur = cur[part]
-        return cur
 
-    @staticmethod
-    def _set_nested(obj: Dict, path: str, value):
-        parts = path.split(".")
-        cur = obj
-        for part in parts[:-1]:
-            if part not in cur or not isinstance(cur[part], dict):
-                cur[part] = {}
-            cur = cur[part]
-        cur[parts[-1]] = value
-
-    @staticmethod
-    def _normalize_text(text: str) -> str:
-        return re.sub(r"\s+", " ", (text or "").strip().lower())
-
-    @staticmethod
-    def _tokenize_text(text: str) -> set:
-        normalized = MemoryManager._normalize_text(text)
-        tokens = re.findall(r"[a-z0-9_]+|[\u4e00-\u9fff]+", normalized)
-        return set(tokens)
 
     # NOTE: Heuristic conflict detection functions (_weighted_overlap_score,
     # _is_negation_text, _polarity_score, _has_antonym_pair, _rule_maybe_contradict,
@@ -216,8 +187,8 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
                 "attributes.birth_name",
             ]
             for path in protected_paths:
-                old_value = self._get_nested(before_state, path)
-                new_value = self._get_nested(
+                old_value = get_nested(before_state, path)
+                new_value = get_nested(
                     {"core_traits": merged_core_traits, "attributes": merged_attributes},
                     path,
                 )
@@ -233,9 +204,9 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
                         notes="Blocked automatic mutation of protected identity field.",
                     )
                     if path.startswith("core_traits."):
-                        self._set_nested(merged_core_traits, path.replace("core_traits.", "", 1), old_value)
+                        set_nested(merged_core_traits, path.replace("core_traits.", "", 1), old_value)
                     else:
-                        self._set_nested(merged_attributes, path.replace("attributes.", "", 1), old_value)
+                        set_nested(merged_attributes, path.replace("attributes.", "", 1), old_value)
 
             # Hard conflict rule (minimal): dead cannot silently become alive.
             if (not conflict_safe) and existing[3] == "dead" and merged_status == "alive":
