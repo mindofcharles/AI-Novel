@@ -46,4 +46,4 @@ workflow:
   # Blocking conflict governance mode:
   # - "auto_keep_existing": auto-resolve BLOCKING conflicts by keep_existing before gating.
   # - "manual_block": never auto-resolve BLOCKING conflicts; fail fast until resolved manually.
-  blocking_conflict_mode: "auto_keep_existing"
+  blocking_conflict_mode: "manual_block"

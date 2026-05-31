@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any, Dict, List, Optional
 
 from memory import MemoryManager
@@ -20,6 +21,7 @@ class StoryStateManager:
         self.memory = memory
         self.embedding_client = embedding_client
         self.tier_3_search_limit = tier_3_search_limit
+        self.logger = logging.getLogger("StoryStateManager")
 
     @staticmethod
     def _contains_token(text: str, token: str) -> bool:
@@ -492,15 +494,29 @@ class StoryStateManager:
         """
         rows = self.memory.get_pending_conflicts(limit=500, blocking_only=True)
         resolved = 0
-        for row in rows:
-            conflict_id = row[0]
-            conflict_type = row[3]
-            ok = self.memory.resolve_conflict(
-                conflict_id,
-                action="keep_existing",
-                resolver_note=f"auto-strict keep_existing for {conflict_type}",
-                source="auto_resolver",
-            )
-            if ok:
-                resolved += 1
+        if rows:
+            self.logger.warning("================================================================================")
+            self.logger.warning("WARNING: Auto-resolving pending BLOCKING conflicts using 'keep_existing' policy!")
+            self.logger.warning("This bypasses strict human triage. To enforce manual approval and block downstream tasks,")
+            self.logger.warning("change 'blocking_conflict_mode' in 'config.yaml' to 'manual_block'.")
+            self.logger.warning("--------------------------------------------------------------------------------")
+            for row in rows:
+                conflict_id = row[0]
+                entity_type = row[1]
+                entity_key = row[2]
+                conflict_type = row[3]
+                chapter_num = row[5]
+                self.logger.warning(
+                    f"-> Auto-resolved BLOCKING Conflict #{conflict_id}: type='{conflict_type}', "
+                    f"entity='{entity_type}:{entity_key}', chapter={chapter_num} (action=keep_existing)"
+                )
+                ok = self.memory.resolve_conflict(
+                    conflict_id,
+                    action="keep_existing",
+                    resolver_note=f"auto-strict keep_existing for {conflict_type}",
+                    source="auto_resolver",
+                )
+                if ok:
+                    resolved += 1
+            self.logger.warning("================================================================================")
         return resolved

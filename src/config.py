@@ -134,4 +134,4 @@ CHAPTER_GUIDE_DISCUSSION_ROUNDS = int(_get("workflow", "chapter_guide_discussion
 CHAPTER_REVISION_ROUNDS = int(_get("workflow", "chapter_revision_rounds", 1))
 CHAPTER_TEXT_DISCUSSION_ROUNDS = int(_get("workflow", "chapter_text_discussion_rounds", CHAPTER_REVISION_ROUNDS))
 AUTO_GENERATION_MAX_RETRIES = int(_get("workflow", "auto_generation_max_retries", 3))
-BLOCKING_CONFLICT_MODE = str(_get("workflow", "blocking_conflict_mode", "auto_keep_existing")).lower()
+BLOCKING_CONFLICT_MODE = str(_get("workflow", "blocking_conflict_mode", "manual_block")).lower()

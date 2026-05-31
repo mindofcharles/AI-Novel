@@ -248,7 +248,7 @@ class WorkflowManager(
         return overview
 
     def _enforce_conflict_free_state(self, stage: str):
-        mode = (getattr(config, "BLOCKING_CONFLICT_MODE", "auto_keep_existing") or "auto_keep_existing").lower()
+        mode = (getattr(config, "BLOCKING_CONFLICT_MODE", "manual_block") or "manual_block").lower()
         if mode == "auto_keep_existing":
             self.state_manager.auto_resolve_pending_conflicts()
         elif mode == "manual_block":
