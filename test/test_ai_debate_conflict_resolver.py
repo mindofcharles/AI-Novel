@@ -53,9 +53,11 @@ class AIDebateConflictResolverTests(unittest.TestCase):
         self.workflow.critic_client = MagicMock()
         self.workflow.scanner_client = MagicMock()
         self.workflow.planner_client = MagicMock()
+        self.workflow.embedding_client = MagicMock()
 
         self.workflow.ai_resolve_conflicts = True
         self.workflow.in_auto_mode = False
+        self.workflow.initialize_autonomy()
 
     def tearDown(self):
         self.workflow.memory.close()
@@ -66,10 +68,8 @@ class AIDebateConflictResolverTests(unittest.TestCase):
         return os.path.join(self.workflow.chapters_dir, f"chapter_{chapter_num:03d}.md")
 
     def _extract_json(self, text: str):
-        try:
-            return json.loads(text)
-        except Exception:
-            return None
+        from workflow_components.parsing import extract_json_payload
+        return extract_json_payload(text)
 
     def test_ai_debate_consensus_apply(self):
         # 1. Setup a dead character and queue a resurrection conflict
@@ -81,18 +81,30 @@ class AIDebateConflictResolverTests(unittest.TestCase):
         conflict_id = conflicts[0][0]
 
         # 2. Mock LLM outputs
-        self.workflow.critic_client.generate.return_value = "Keep Iris dead for tragic impact!"
-        self.workflow.scanner_client.generate.return_value = "Iris must live because she has an ongoing harbor arc."
-        
-        planner_decision = {
-            "action": "apply_incoming",
-            "reasoning": "Iris surviving makes narrative sense to continue her harbor arc.",
-            "narrative_compromise": "Iris was barely alive, rescued by harbor fishermen."
-        }
-        self.workflow.planner_client.generate.return_value = json.dumps(planner_decision)
+        outputs = [
+            "Final Answer: Keep Iris dead for tragic impact!",
+            "Final Answer: Iris must live because she has an ongoing harbor arc.",
+            "Final Answer: " + json.dumps({
+                "action": "apply_incoming",
+                "reasoning": "Iris surviving makes narrative sense to continue her harbor arc.",
+                "narrative_compromise": "Iris was barely alive, rescued by harbor fishermen."
+            })
+        ]
+        def generate_mock(prompt, system_instruction=None, temperature=0.3, require_json=False, **kwargs):
+            if require_json:
+                return '{"is_healthy": true, "reason": "ok"}'
+            return outputs.pop(0) if outputs else "Final Answer: ok"
+        self.workflow.critic_client.generate.side_effect = generate_mock
 
-        # 3. Trigger debate resolution
-        resolved = self.workflow.ai_debate_resolve_conflict(conflict_id)
+        # 3. Trigger debate resolution under 1 round
+        import config
+        old_rounds = getattr(config, "CONFLICT_DISCUSSION_ROUNDS", 2)
+        config.CONFLICT_DISCUSSION_ROUNDS = 1
+        try:
+            resolved = self.workflow.ai_debate_resolve_conflict(conflict_id)
+        finally:
+            config.CONFLICT_DISCUSSION_ROUNDS = old_rounds
+
         self.assertTrue(resolved)
 
         # 4. Verify DB state mutation
@@ -120,18 +132,30 @@ class AIDebateConflictResolverTests(unittest.TestCase):
         conflict_id = conflicts[0][0]
 
         # 2. Mock LLM outputs choosing keep_existing
-        self.workflow.critic_client.generate.return_value = "Keep dead!"
-        self.workflow.scanner_client.generate.return_value = "Prose advocate arg."
-        
-        planner_decision = {
-            "action": "keep_existing",
-            "reasoning": "Continuity rules strictly dictate dead remains dead.",
-            "narrative_compromise": "Iris remains dead."
-        }
-        self.workflow.planner_client.generate.return_value = json.dumps(planner_decision)
+        outputs = [
+            "Final Answer: Keep dead!",
+            "Final Answer: Prose advocate arg.",
+            "Final Answer: " + json.dumps({
+                "action": "keep_existing",
+                "reasoning": "Continuity rules strictly dictate dead remains dead.",
+                "narrative_compromise": "Iris remains dead."
+            })
+        ]
+        def generate_mock(prompt, system_instruction=None, temperature=0.3, require_json=False, **kwargs):
+            if require_json:
+                return '{"is_healthy": true, "reason": "ok"}'
+            return outputs.pop(0) if outputs else "Final Answer: ok"
+        self.workflow.critic_client.generate.side_effect = generate_mock
 
         # 3. Trigger debate resolution
-        resolved = self.workflow.ai_debate_resolve_conflict(conflict_id)
+        import config
+        old_rounds = getattr(config, "CONFLICT_DISCUSSION_ROUNDS", 2)
+        config.CONFLICT_DISCUSSION_ROUNDS = 1
+        try:
+            resolved = self.workflow.ai_debate_resolve_conflict(conflict_id)
+        finally:
+            config.CONFLICT_DISCUSSION_ROUNDS = old_rounds
+
         self.assertTrue(resolved)
 
         # 4. Verify DB state stays keep_existing
@@ -151,14 +175,26 @@ class AIDebateConflictResolverTests(unittest.TestCase):
         conflict_id = conflicts[0][0]
 
         # 2. Mock LLM outputs choosing an invalid action (standoff)
-        self.workflow.critic_client.generate.return_value = "Keep dead!"
-        self.workflow.scanner_client.generate.return_value = "Let live!"
-        
-        # Standoff / Invalid JSON response
-        self.workflow.planner_client.generate.return_value = "We cannot agree on anything."
+        outputs = [
+            "Final Answer: Keep dead!",
+            "Final Answer: Let live!",
+            "Final Answer: We cannot agree on anything."
+        ]
+        def generate_mock(prompt, system_instruction=None, temperature=0.3, require_json=False, **kwargs):
+            if require_json:
+                return '{"is_healthy": true, "reason": "ok"}'
+            return outputs.pop(0) if outputs else "Final Answer: ok"
+        self.workflow.critic_client.generate.side_effect = generate_mock
 
         # 3. Trigger debate resolution
-        resolved = self.workflow.ai_debate_resolve_conflict(conflict_id)
+        import config
+        old_rounds = getattr(config, "CONFLICT_DISCUSSION_ROUNDS", 2)
+        config.CONFLICT_DISCUSSION_ROUNDS = 1
+        try:
+            resolved = self.workflow.ai_debate_resolve_conflict(conflict_id)
+        finally:
+            config.CONFLICT_DISCUSSION_ROUNDS = old_rounds
+
         self.assertFalse(resolved) # Standoff returns False!
 
         # 4. Verify DB state is unchanged and stays PENDING
@@ -182,17 +218,30 @@ class AIDebateConflictResolverTests(unittest.TestCase):
 
         # 2. Bind the gating method from WorkflowManager (need to mock _enforce_conflict_free_state context)
         # Mock LLM Planner to return standoff
-        self.workflow.critic_client.generate.return_value = "Arg1"
-        self.workflow.scanner_client.generate.return_value = "Arg2"
-        self.workflow.planner_client.generate.return_value = "STANDOFF"
+        outputs = [
+            "Final Answer: Arg1",
+            "Final Answer: Arg2",
+            "Final Answer: STANDOFF"
+        ]
+        def generate_mock(prompt, system_instruction=None, temperature=0.3, require_json=False, **kwargs):
+            if require_json:
+                return '{"is_healthy": true, "reason": "ok"}'
+            return outputs.pop(0) if outputs else "Final Answer: ok"
+        self.workflow.critic_client.generate.side_effect = generate_mock
 
         # Bind the target method
         from workflow import WorkflowManager as WM_original
         self.workflow._enforce_conflict_free_state = WM_original._enforce_conflict_free_state.__get__(self.workflow)
 
         # 3. Trigger gating check, verify it raises RuntimeError (Fail-Fast)
-        with self.assertRaises(RuntimeError) as ctx:
-            self.workflow._enforce_conflict_free_state(stage="chapter_002_post_scan")
+        import config
+        old_rounds = getattr(config, "CONFLICT_DISCUSSION_ROUNDS", 2)
+        config.CONFLICT_DISCUSSION_ROUNDS = 1
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                self.workflow._enforce_conflict_free_state(stage="chapter_002_post_scan")
+        finally:
+            config.CONFLICT_DISCUSSION_ROUNDS = old_rounds
         
         self.assertIn("Conflict Resolution Standoff", str(ctx.exception))
         self.assertIn("Fail-Fast triggered", str(ctx.exception))

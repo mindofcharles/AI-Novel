@@ -28,13 +28,15 @@ class AutonomyWorkflowMixin:
         # Establish the 3-AI Database Management Committee
         self.db_committee = DatabaseManagementCommittee(self.att_manager)
         
-        # Register the Database Management Committee on MemoryManager
-        self.memory.set_db_committee(self.db_committee)
+        # Register the Database Management Committee on MemoryManager safely
+        memory = getattr(self, "memory", None)
+        if memory is not None:
+            memory.set_db_committee(self.db_committee)
 
         # Register the centralized tools context
         self.att_manager.register_tools_context({
-            "memory": self.memory,
-            "embedding_client": self.embedding_client,
+            "memory": memory,
+            "embedding_client": getattr(self, "embedding_client", None),
             "gated_reader": self.gated_reader,
             "att_manager": self.att_manager,
             "db_committee": self.db_committee

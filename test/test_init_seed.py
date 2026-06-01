@@ -84,6 +84,7 @@ class InitSeedingTests(unittest.TestCase):
         wf.critic_client = _StubClient([])
         wf.scanner_client = _StubClient([json.dumps(seed_json, ensure_ascii=False)])
         wf.embedding_client = _StubClient([])  # not used because details is empty
+        wf.initialize_autonomy()
 
         old_world_rounds = config.WORLD_DISCUSSION_ROUNDS
         old_plot_rounds = config.PLOT_DISCUSSION_ROUNDS

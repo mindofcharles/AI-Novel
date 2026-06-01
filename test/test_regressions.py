@@ -517,7 +517,9 @@ class WorkflowGuideDiscussionTests(unittest.TestCase):
         def __init__(self, outputs):
             self.outputs = list(outputs)
 
-        def generate(self, prompt, system_instruction=None, temperature=0.7):
+        def generate(self, prompt, system_instruction=None, temperature=0.7, require_json=False, **kwargs):
+            if require_json:
+                return '{"is_healthy": true, "reason": "ok"}'
             if not self.outputs:
                 raise RuntimeError("No output configured")
             return self.outputs.pop(0)
@@ -526,14 +528,19 @@ class WorkflowGuideDiscussionTests(unittest.TestCase):
         tmpdir = tempfile.mkdtemp(prefix="guide_discussion_")
         wf = WorkflowManager.__new__(WorkflowManager)
         wf.logger = logging.getLogger("workflow-guide-discussion-test")
-        wf.critic_client = self._StubClient(["Needs revision: strengthen midpoint conflict."])
-        wf.planner_client = self._StubClient(["Revised guide with stronger midpoint conflict."])
+        wf.critic_client = self._StubClient([
+            "Final Answer: Needs revision: strengthen midpoint conflict.",
+            "Final Answer: Revised guide with stronger midpoint conflict.",
+            "Final Answer: Final Answer: Revised guide with stronger midpoint conflict."
+        ])
+        wf.planner_client = wf.critic_client
         wf._enforce_output_language = lambda client, role, text, system_instruction, chapter_num=None, world_building=False: text
         wf._log_llm_interaction = lambda **kwargs: None
         wf._language_rule = lambda: "Use English only."
         wf.discussions_dir = os.path.join(tmpdir, "process", "discussions")
         wf.guides_dir = os.path.join(tmpdir, "frame", "chapter_guides")
         os.makedirs(wf.guides_dir, exist_ok=True)
+        wf.initialize_autonomy()
 
         old_lang = config.LANGUAGE
         old_rounds = config.CHAPTER_GUIDE_DISCUSSION_ROUNDS
@@ -557,7 +564,9 @@ class WorkflowTextDiscussionTests(unittest.TestCase):
         def __init__(self, outputs):
             self.outputs = list(outputs)
 
-        def generate(self, prompt, system_instruction=None, temperature=0.7):
+        def generate(self, prompt, system_instruction=None, temperature=0.7, require_json=False, **kwargs):
+            if require_json:
+                return '{"is_healthy": true, "reason": "ok"}'
             if not self.outputs:
                 raise RuntimeError("No output configured")
             return self.outputs.pop(0)
@@ -566,14 +575,19 @@ class WorkflowTextDiscussionTests(unittest.TestCase):
         tmpdir = tempfile.mkdtemp(prefix="text_discussion_")
         wf = WorkflowManager.__new__(WorkflowManager)
         wf.logger = logging.getLogger("workflow-text-discussion-test")
-        wf.critic_client = self._StubClient(["NEEDS_REVISION: no\nRATIONALE: ok\nPATCH_GUIDANCE: none"])
-        wf.writer_client = self._StubClient([])
+        wf.critic_client = self._StubClient([
+            "Final Answer: NEEDS_REVISION: no\nRATIONALE: ok\nPATCH_GUIDANCE: none",
+            "Final Answer: Revised chapter text.",
+            "Final Answer: Revised chapter text."
+        ])
+        wf.writer_client = wf.critic_client
         wf.discussions_dir = os.path.join(tmpdir, "process", "discussions")
         wf.reviews_dir = os.path.join(tmpdir, "process", "reviews")
         wf.revisions_dir = os.path.join(tmpdir, "process", "revisions")
         wf.chapters_dir = os.path.join(tmpdir, "main_text", "chapters")
         os.makedirs(wf.chapters_dir, exist_ok=True)
         os.makedirs(wf.revisions_dir, exist_ok=True)
+        wf.initialize_autonomy()
 
         wf._critic_review_chapter = lambda chapter_num, guide_content, chapter_text, prompts: (
             "NEEDS_REVISION: no\nRATIONALE: ok\nPATCH_GUIDANCE: none"
@@ -597,8 +611,8 @@ class WorkflowTextDiscussionTests(unittest.TestCase):
         self.assertTrue(os.path.exists(discussion_path))
         self.assertTrue(os.path.exists(index_path))
         with open(discussion_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        self.assertIn("[chapter_text] chapter=1 round=1 role=Critic", content)
+             content = f.read()
+        self.assertIn("[chapter_text] chapter=1 round=1 role=Chapter_Editorial_Committee", content)
         self.assertIn("`log_id`", content)
         self.assertIn("`input_summary`", content)
         self.assertIn("`output_summary`", content)

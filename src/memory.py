@@ -29,9 +29,6 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
         self._faiss_backup = None
         self.db_committee = None
         
-    def set_db_committee(self, db_committee):
-        self.db_committee = db_committee
-        
         db_dir = os.path.dirname(self.db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
@@ -47,6 +44,9 @@ class MemoryManager(MemorySchemaMixin, MemoryConflictCommitMixin):
                 pass
                 
         self._init_faiss()
+        
+    def set_db_committee(self, db_committee):
+        self.db_committee = db_committee
 
     def _maybe_commit(self):
         if self.conn and not self._in_batch:
