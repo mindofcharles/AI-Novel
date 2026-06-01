@@ -211,55 +211,72 @@ Performed before DB commit in `scan_chapter()` via `_critic_review_extracted_fac
   * `auto_keep_existing`: auto-resolve `BLOCKING` conflicts with `keep_existing` before gate checks.
   * `manual_block`: never auto-resolve; gate blocks while any `BLOCKING` conflict remains.
 
-### Multi-Agent Cooperative Debate Conflict Resolver
+### ATT Conflict Resolution Committee
 
-When running under continuous writing mode (`--auto`) or enabled via the CLI flag (`--ai-resolve-conflicts`), the system automatically spawns a specialized **Cooperative Discussion Panel** consisting of three AI agents to debate and resolve any encountered blocking conflicts:
+When running under continuous writing mode (`--auto`) or enabled via the CLI flag (`--ai-resolve-conflicts`), the system automatically spawns a dynamically managed **Conflict Resolution Committee** Agent Team (AT) consisting of three specialized AI agents to debate and resolve any encountered blocking conflicts:
 
-* **Critic (Historian)**: Strict defender of database integrity, rules, and past continuity (advocates for `keep_existing`).
-* **Scanner (Prose Advocate)**: Defends new creative prose intentions, momentum, and character developments (advocates for `apply_incoming`).
-* **Planner (Arbitrator)**: Leads the discussion panel, moderates the debate, and synthesizes a final narrative consensus or creative compromise.
+* **Historian_Critic**: Strict defender of database integrity, global rules, and past continuity (advocates for `keep_existing`).
+* **Prose_Scanner**: Defends new creative prose intentions, story momentum, and character developments (advocates for `apply_incoming`).
+* **Consensus_Planner**: Moderates the committee panel and makes the final executive resolution decision.
 
 #### Debate Termination & Standoff Governance (Fail-Fast)
 
-* **Consensus Rule**: The debate runs for exactly $N$ rounds (configured via `conflict_discussion_rounds`, default: 2).
-* **Fail-Fast Boundary**: If the Planner cannot synthesize a unanimous agreement on exactly `"apply_incoming"` or `"keep_existing"` by the final round, **the system must immediately stop and trigger a standoff** (raising `RuntimeError`). This prevents silent data corruption and queues the debate log for human inspection.
+* **Consensus Rule**: The debate runs for exactly $N$ rounds (configured via `conflict_discussion_rounds`, default: 2) inside the dynamically generated AT.
+* **Fail-Fast Boundary**: If the Consensus_Planner cannot synthesize a unanimous agreement on exactly `"apply_incoming"` or `"keep_existing"` by the final round, **the system must immediately stop and trigger a standoff** (raising `RuntimeError`). This prevents silent data corruption and queues the debate log for human inspection.
 * **Deep Context Assembly**: The debate panel receives a comprehensive context window including:
   * **Multi-Chapter Prose Window**: Full text of preceding chapter Ch N-1, conflict chapter Ch N, and succeeding chapter Ch N+1.
   * **Structured Context**: SQLite character profiles/attributes, global strict world rules, and the last 10 timeline events.
 * **Auditable Logs**: Every debate session transcript and reasoning is written to `novel/process/discussions/conflict_{id}_resolution_discussion.md`.
 
-## High-Level AI Autonomy & Dynamic Subagent Delegation
+## High-Level AI Autonomy: ATT (AI Team Team) Topology
 
-To support complex narrative tasks, background lore alignment, and timeline auditing, the system implements an experimental **Modular Broker-Node Autonomy Suite** that empowers AI agents to transition from passive context consumers to active coordinators.
+To support complex narrative tasks, background lore alignment, database transaction auditing, and timeline analysis, the system implements a unified **ATT (AI Team Team)** topology that empowers AI agents to transition from passive context consumers to active, self-governing groups.
 
 > [!NOTE]
-> For in-depth technical specifications, class models, and detailed control-flow Mermaid diagrams of each component, please refer to the dedicated **[AI Autonomy Suite Specification](Autonomy_Suite/README.md)** and the **[AI Autonomy Suite Flowcharts](Flowchart/Autonomy_Suite/README.md)**.
+> For in-depth technical specifications, class models, and detailed control-flow Mermaid diagrams of each component, please refer to the dedicated **[AI Autonomy Suite Specification](ATT_Autonomy_Suite/README.md)**, **[AI Autonomy Suite Flowcharts](Flowchart/ATT_Autonomy_Suite/README.md)**, and the **[Database Management Committee Specification](Database_Management_Committee.md)**.
 
-### 1. Modular Event-Broker Node Architecture
+### 1. Recursive Spawning & Hierarchy Lineages
 
-The autonomy suite is built on a highly decoupled event-driven model:
+The ATT topology is built on a dynamic recursive lineage model:
 
-* **`AgentNode`**: Represents a single agent in the execution tree. Prepend runtime identity profile headers to prompt templates (identity, parent node, sibling peers, spawning boundaries, active objective) to maintain role discipline. Executes tasks inside a bounded ReAct (Reasoning & Action) tool invocation loop.
-* **`MessageBroker`**: Coordinates and routes message transfers between parent, child, and sibling agents. Handles message registration and supports P2P collaborative queues between sibling specialist teams.
-* **`GatedFileReader`**: Protects the LLM context window from massive logs or data dumps by restricting direct reads on files exceeding `large_file_threshold_kb` (default: 50 KB). Returns a structured **File Outline** warning (with sampled lines) instead, forcing agents to query specific slices using the paginated `read_file_chunk(path, start_line, end_line)` tool (capped at `max_chunk_lines` e.g. 100). Includes `read_file_tail` for streaming logs and index files.
-* **`SupervisorAgent`**: An asynchronous, non-participating observer auditor node subscribed to all broker traffic. It does not write prose or argue details. Instead, it enforces constraints:
-  * **Resource Cost Budgeting**: Tracks estimated session tokens and terminates execution with an `EARLY_TERMINATION` command if costs exceed the configured cap (default: `$1.00`).
-  * **Deadlock Detection**: Analyzes debate logs across a sliding 3-turn window using a word-overlap lexical similarity metric (> 75%). If sibling agents fall into circular arguments, it interjects an `INTERJECT_PROMPT` command containing overriding instructions to force the Planner to synthesize a compromise.
-  * **Team Pruning**: Dispatches `PRUNE_NODE` commands to gracefully shut down redundant subagents upon task completion, releasing memory and active database connections.
+* **Level 0 (Root AI)**: The primary workflow agent coordinating the project.
+* **Level 1 (Child AT)**: Dynamic Agent Teams spawned by Level 0 or its components to handle specialized tasks (e.g., Chapter Planning Committee, World Bible Committee).
+* **Level 2 (Grandchild AT)**: Dynamic sub-teams spawned recursively by Level 1 members to perform micro-validations (e.g., Timeline Auditor, Character status check).
+* **Enforced Team Size**: Every dynamic Agent Team (AT) must contain at least 3 AI members ($N \ge 3$) to guarantee balanced debates.
 
-### 2. Hierarchical Spawning & Escalation Channels
+### 2. P2P Negotiation & Sibling Routing
 
-* **Depth Limit Gate**: Spawning of subagent trees is strictly restricted to a maximum depth of 2 (Root Depth 0 -> Child Depth 1 -> Grandchild Depth 2).
-* **Bidirectional Escalation**: If a Grandchild agent (Depth 2) requires additional delegation or research, it is structurally forbidden from spawning depth-3 agents. Instead, it escalates a structured JSON request to its parent Child (Depth 1) node via the broker. The parent proxy coordinates the task and relays the results back down, preventing infinite agent loops and resource blowout.
+Communication permissions between dynamic ATs are strictly regulated:
 
-### 3. Autonomy Toggles in Configuration
+* **Sibling ATs**: Communication is rule-gated by their common parent team's rules (`allow_sibling_talk`).
+* **Cross-Lineage ATs**: Requires dynamic negotiation brokered by `NegotiationBroker`, running a simulated agreement loop between their respective parent teams before establishing a communication tunnel.
+* **Escalation Protocol**: Dynamic parent-routing dispatches structured messages/alerts directly to the parent team's `message_inbox`. The parent team automatically processes and injects unresolved alerts into its active discussion prompts.
+
+### 3. Supervisory Auditing Team
+
+A non-participating **Supervisory Team** composed of exactly 3 specialized AI auditors (Integrity, Continuity, and Deadlock Auditors) audits the dialogue effectiveness of all active Agent Teams:
+
+* **Deadlock Detection**: Audits multi-agent discussion transcripts for deadlocks, repetition, and role deviations.
+* **Recursive Parent Escalation**: Escalates anomalies up the lineage tree until a healthy parent is found. If all ancestors fail (lineage collapse), reports directly to the Level 0 Root AI.
+
+### 4. Centralized ReAct Tool Execution & Safe Argument Parser
+
+Agents in dynamic teams execute tasks inside a robust **Reasoning & Action (ReAct)** loop:
+
+* **Centralized Registry**: Uses a centralized factory in `tools.py` registering system-wide tools (`query_sqlite`, `search_faiss`, `read_file_chunk`, `read_file_tail`, `dispatch_subagent`, `delegate_escalation`, `set_sibling_talk`).
+* **Safe Argument Parser**: Leverages Python's `ast.literal_eval` to safely evaluate quoted string arguments (e.g., search queries containing commas) without breaking or misinterpreting parameters.
+
+### 5. Database Management Committee (DMC)
+
+To secure the SQLite memory store, a dedicated 3-AI **Database Management Committee** audits all direct SQLite transactions and queries, guarding against malicious SQL injection, schema corruption, and logical rule contradictions.
+
+### 6. Autonomy Toggles in Configuration
 
 The entire autonomy framework is highly modular and can be fully enabled/disabled or tuned in `config.yaml` under `autonomy:`:
 
 * `enable_autonomy_suite`: Master toggle to load/skip all autonomy components.
 * `enable_autonomous_queries`: Toggle for ReAct tool use (SQLite, FAISS, Gated file paginators).
 * `enable_dynamic_delegation`: Toggle for hierarchical subagent tree spawning.
-* `enable_budget_monitoring`: Toggle for Supervisor Agent budget tracking.
 
 ## Commit Replay Recovery
 

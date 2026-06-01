@@ -131,30 +131,24 @@ When the Scanner detects a semantic change in the story's state (e.g., a charact
      python src/main.py --resolve-conflict <ID> <keep_existing|apply_incoming>
      ```
 
-### High-Level AI Autonomy & Subagent Delegation
+### High-Level AI Autonomy & ATT Topology
 
-For complex background research, timeline auditing, and multi-tier logical analysis, the system supports dynamic AI delegation and autonomous tool use. This experimental suite is highly modular and is fully customized under the `autonomy` section in `config.yaml`:
+For complex background research, timeline auditing, and multi-tier logical analysis, the system supports dynamic AI team delegation and autonomous tool use. This suite is highly modular and is fully customized under the `autonomy` section in `config.yaml`:
 
 * **`enable_autonomy_suite: false`**
-  * *Master Switch*: Toggle to enable or disable the entire autonomy suite. If `false`, all other autonomy processes are bypassed and no subagents, brokers, or supervisors are instantiated.
+  * *Master Switch*: Toggle to enable or disable the entire autonomy suite. If `false`, all other autonomy processes are bypassed and no dynamic teams, brokers, or supervisors are instantiated.
 * **`enable_autonomous_queries: false`**
   * *Tool Loop Toggle*: Allows AI agents to run bounded ReAct (Reasoning & Action) loops, autonomously executing SQLite queries, FAISS vector searches, and paginated gated file lookups in the background.
 * **`enable_dynamic_delegation: false`**
-  * *Delegation Toggle*: Enables agents to spawn specialized child subagents and grandchild nodes to offload research and outline consistency tasks.
-* **`max_delegation_depth: 2`**
-  * *Spawning Gate*: The maximum depth of the subagent spawning tree (Root Depth 0 $\rightarrow$ Child Depth 1 $\rightarrow$ Grandchild Depth 2). Spawning at depth 3 is blocked and escalated back up to the parent.
-* **`max_subagent_team_size: 3`**
-  * *Team Cap*: The maximum number of sibling subagents that can be spawned to work collaboratively under a single parent node.
-* **`subagent_discussion_rounds: 1`**
-  * *Loop Limit*: The number of debate or discussion rounds executed within spawned subagent panels before finalizing decisions.
+  * *Delegation Toggle*: Enables agents to recursively spawn specialized child and grandchild Agent Teams (ATs) to offload research and outline consistency tasks.
 * **`large_file_threshold_kb: 50`**
   * *Context Protection Limit*: Files larger than this threshold (in KB) will block direct full reads by agents. The system will instead return a structured **File Outline** sample, forcing the agent to paginate.
 * **`max_chunk_lines: 100`**
   * *Pagination Chunk Cap*: The maximum number of lines returned in a single paginated chunk read. Helps protect the LLM context from log/draft dumps.
-* **`enable_budget_monitoring: false`**
-  * *Auditor Toggle*: Enables the non-participating **Supervisor Agent** to subscribe to broker traffic and monitor total token expenditure.
-* **`total_token_budget_usd: 1.00`**
-  * *Budget Threshold*: The session-wide token cost budget cap (in USD). If exceeded, the Supervisor agent intercepts the transaction and raises an `EARLY_TERMINATION` to prevent runaway charges.
+
+### SQLite Auditing: Database Management Committee
+
+Direct transactions on the SQLite memory database are guarded by the 3-AI Database Management Committee. Every SQLite execution is intercepted, audited, and safety-verified automatically before being committed.
 
 ### Recovery from Failures
 

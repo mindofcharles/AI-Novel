@@ -114,8 +114,8 @@ stateDiagram-v2
 
     BLOCKING --> RESOLVED: Manual --resolve-conflict
     BLOCKING --> RESOLVED: auto_resolve (Strict Mode)
-    BLOCKING --> RESOLVED: Multi-Agent Debate Panel Consensus
-    BLOCKING --> STANDOFF: Multi-Agent Debate Panel Consensus Failure (Fail-Fast)
+    BLOCKING --> RESOLVED: Conflict Resolution Committee Consensus
+    BLOCKING --> STANDOFF: Conflict Resolution Committee Consensus Failure (Fail-Fast)
     
     NON_BLOCKING --> RESOLVED: batch_triage
     
@@ -126,9 +126,9 @@ stateDiagram-v2
     }
 ```
 
-## 4. Multi-Agent Cooperative Debate Conflict Resolution Workflow
+## 4. Conflict Resolution Committee Workflow
 
-When continuous loops (`--auto`) or the CLI flag `--ai-resolve-conflicts` are active, the system automatically spawns a Multi-Agent Debate Panel to resolve blocking conflicts rather than halting immediately or applying simple heuristics.
+When continuous loops (`--auto`) or the CLI flag `--ai-resolve-conflicts` are active, the system automatically spawns a dynamic **Conflict Resolution Committee** Agent Team (AT) to resolve blocking conflicts rather than halting immediately or applying simple heuristics.
 
 ```mermaid
 flowchart TD
@@ -150,10 +150,10 @@ flowchart TD
     ContextAssembly --> Context
     Context --> DebateLoop["2. Bounded Debate Loop (1 to N Rounds)"]
     
-    subgraph Panel ["Debate Panel"]
-        Critic["Critic (Historian)\nDefends continuity and rules"]
-        Scanner["Scanner (Prose Advocate)\nDefends writer's creative choices"]
-        Planner["Planner (Arbitrator)\nModerates debate and summarizes"]
+    subgraph Panel ["Conflict Resolution Committee (AT)"]
+        Critic["Historian_Critic\nDefends database integrity, continuity, and rules"]
+        Scanner["Prose_Scanner\nDefends writer's creative prose choices"]
+        Planner["Consensus_Planner\nModerates debate, summarizes, and decides"]
         
         Critic --> Scanner --> Planner
     end
@@ -161,7 +161,7 @@ flowchart TD
     DebateLoop --> Panel
     Panel --> FinalRound{"Round N (Final)?"}
     
-    FinalRound -- "Planner decides action" --> ExtractJSON["Parse JSON payload"]
+    FinalRound -- "Consensus_Planner decides action" --> ExtractJSON["Parse JSON payload"]
     ExtractJSON --> ValidateConsensus{"Valid Consensus Action?\n(apply_incoming OR keep_existing)"}
     
     ValidateConsensus -- "Yes" --> CommitDB["3. Commit SQLite Transaction and Mark RESOLVED"]

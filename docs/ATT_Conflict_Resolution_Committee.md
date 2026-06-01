@@ -1,18 +1,18 @@
 # Multi-Agent Cooperative Debate Conflict Resolver
 
-This document provides a detailed technical reference and operational guide for the **Multi-Agent Cooperative Debate Conflict Resolver**, a resilient, self-governing conflict resolution mechanism designed to negotiate and resolve semantic and logical contradictions.
+This document provides a detailed technical reference and operational guide for the **Multi-Agent Cooperative Debate Conflict Resolver**, a dynamic, dynamic, self-governing conflict resolution mechanism designed to negotiate and resolve semantic and logical contradictions within the ATT framework.
 
-## 1. Design Paradigm: Cooperative AI Panels
+## 1. Design Paradigm: Dynamic Committee Teams
 
-When a blocking conflict is encountered during generation (such as character resurrection anomalies or spatiotemporal rule violations), instead of simply pausing execution or relying on mechanical defaults, the system automatically convenes a **Cooperative Discussion Panel** of three specialized AI agents:
+When a blocking conflict is encountered during chapter scanning (such as character status contradictions or spatiotemporal rule violations), instead of relying on static pre-configured panels or static defaults, the system dynamically convenes a **Conflict Resolution Committee** Agent Team (AT) composed of exactly 3 specialized AI members spawned via the unified `ATTManager`:
 
-1. **Critic (Historian)**: The guardian of world consistency. Highly skeptical of changes that contradict existing database facts or established world rules.
-2. **Scanner (Prose Advocate)**: The champion of new narrative directions. Defends the writer's creative prose choices, narrative pacing, and newly scanned updates.
-3. **Planner (Arbitrator)**: The panel moderator. Guides the Critic and Scanner towards compromise and is responsible for making the final executive resolution in the last round.
+1. **Historian_Critic**: The guardian of past continuity. Highly skeptical of changes that contradict existing database facts or established world-building rules (advocates for `keep_existing`).
+2. **Prose_Scanner**: The champion of creative directions. Defends the writer's creative prose choices, narrative pacing, and newly scanned character statuses or details (advocates for `apply_incoming`).
+3. **Consensus_Planner**: The moderator and arbitrator of the committee. Facilitates discussion over multiple rounds and is responsible for making the final executive resolution in the last round.
 
 ## 2. Deep Context Assembly (Multi-Chapter Window)
 
-To enable highly coherent decision-making, the panel does not debate in a vacuum. It is supplied with an exhaustive, contextual snapshot assembled dynamically from multiple sources:
+To enable highly coherent decision-making, the dynamic committee is supplied with a comprehensive, context package assembled by the State Manager:
 
 ```plaintext
                   ┌──────────────────────────────┐
@@ -36,26 +36,26 @@ To enable highly coherent decision-making, the panel does not debate in a vacuum
 * **Conflict Chapter Prose**: The full text of the chapter containing the scanned conflict (Chapter $N$).
 * **Succeeding Chapter Prose**: The full text of the succeeding chapter (Chapter $N+1$) if available.
 * **Structured Database Context**:
-  * **Focus Character profile**: MBTI, core traits, status, and attributes (if a character conflict).
-  * **Active Characters overview**: The global directory of active characters and their statuses.
+  * **Focus Character Profile**: MBTI traits, status, and attributes (if a character conflict).
+  * **Active Characters Directory**: The status and key traits of all characters in the narrative.
   * **Strict Category Rules**: The active rules in the World Bible.
-  * **Last 10 Timeline Events**: The chronologically latest events to trace narrative development.
+  * **Last 10 Timeline Events**: The latest timeline logs to trace story progression.
 
 ## 3. The Bounded Debate Loop
 
-The discussion runs for exactly $N$ rounds (configured via `conflict_discussion_rounds`, default: 2).
+The discussion runs for exactly $N$ rounds (configured via `conflict_discussion_rounds`, default: 2) inside the dynamically generated AT.
 
 ### Round-by-Round Flow ($R < N$)
 
 In each intermediate round, the panel exchanges views sequentially:
 
-1. **Critic** reviews the context and previous debate history, formulating structural continuity arguments in favor of keeping the existing facts (`keep_existing`).
-2. **Scanner** reviews the context, debate history, and the Critic's newly added argument, defending the creative choices that justify the incoming facts (`apply_incoming`).
-3. **Planner** reviews the round arguments, synthesizes a summary of the debate, and highlights potential paths towards compromise.
+1. **Historian_Critic** reviews the context and previous debate history, formulating structural continuity arguments in favor of keeping the existing facts (`keep_existing`).
+2. **Prose_Scanner** reviews the context, debate history, and the Critic's newly added argument, defending the creative choices that justify the incoming facts (`apply_incoming`).
+3. **Consensus_Planner** reviews the round arguments, synthesizes a summary of the debate, and highlights potential paths towards compromise.
 
 ### The Final Round ($R = N$)
 
-In the final round, after the Critic and Scanner deliver their concluding arguments, the **Planner** is commanded to make the final executive decision. It must output exactly a JSON payload:
+In the final round, after concluding arguments, the **Consensus_Planner** is commanded to make the final executive decision. It must output exactly a JSON payload:
 
 ```json
 {
@@ -89,11 +89,11 @@ Narrative safety is strictly prioritized. The system executes a **Fail-Fast Stan
   └───────────┘       └───────────┘
 ```
 
-* **Consensus Validation**: The Planner's output is strictly validated. The action must be exactly `"apply_incoming"` or `"keep_existing"`.
+* **Consensus Validation**: The Consensus_Planner's output is strictly validated. The action must be exactly `"apply_incoming"` or `"keep_existing"`.
 * **Atomic SQLite Mutative Commit**:
-  * On `"apply_incoming"`: The incoming changes (e.g., character status changes, relationship updates) are safely applied to the SQLite database under a single transaction.
+  * On `"apply_incoming"`: The incoming changes are safely applied to the SQLite database under a single transaction.
   * On `"keep_existing"`: The incoming changes are discarded, keeping the existing database state pristine.
-* **Fail-Fast Standoff Gating**: If the Planner fails to output a parseable JSON block, selects an invalid option, or cannot reconcile the agents (a standoff), **the conflict remains `PENDING` in the SQLite database and a `RuntimeError` is immediately thrown**, stopping continuous generation. This guarantees that no silent data corruption or hallucinated overrides can slip through.
+* **Fail-Fast Standoff Gating**: If the Planner fails to output a parseable JSON block, selects an invalid option, or cannot reconcile the agents (a standoff), **the conflict remains `PENDING` in the SQLite database and a `RuntimeError` is immediately thrown**, stopping continuous generation. This guarantees that no silent data corruption can slip through.
 
 ## 5. Auditable Discussion Logs
 
@@ -107,19 +107,17 @@ This transcript provides a rich, readable trace for developers and writers to au
 
 ### Configuration
 
-Set the discussion round limit in [config.yaml](file:///Users/charlestsaur/Documents/sandbox/AI-Novel/config.yaml):
+Set the discussion round limit in `config.yaml`:
 
 ```yaml
 workflow:
-  ...
-  language_rewrite_max_attempts: 2
   conflict_discussion_rounds: 2   # Number of debate rounds (N >= 1)
 ```
 
 ### Usage Modes
 
 1. **Continuous Writing Loop (`--auto`)**:
-   Under `--auto`, the debate resolver is **enabled automatically**. Any blocking conflict encountered during scanning or writing will immediately spawn the panel in the background, showing real-time terminal progress indicators without interactive blocks.
+   Under `--auto`, the debate resolver is **enabled automatically**. Any blocking conflict encountered during scanning or writing will immediately spawn the panel in the background, showing real-time terminal progress indicators.
 2. **CLI Flag (`--ai-resolve-conflicts`)**:
    Pass this flag with planning, writing, or continuous tasks to automatically resolve blocking conflicts using AI debate:
 
@@ -127,8 +125,8 @@ workflow:
    python src/main.py --write 3 --ai-resolve-conflicts
    ```
 
-3. **Manual Override fallback**:
-   If `--ai-resolve-conflicts` is not supplied and the loop is not continuous, the workflow will block on the conflict until manually resolved via:
+3. **Manual Override Fallback**:
+   If the loop is not continuous, the workflow will block on the conflict until manually resolved via:
 
    ```bash
    python src/main.py --resolve-conflict <CONFLICT_ID> <keep_existing|apply_incoming>

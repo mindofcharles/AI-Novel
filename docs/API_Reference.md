@@ -242,8 +242,6 @@ When continuous loops (`--auto`) or the explicit CLI flag `--ai-resolve-conflict
 
 ## `src.autonomy`
 
-This package handles autonomous ReAct reasoning loops, dynamic hierarchical subagent trees, gated file reading to protect LLM context windows, sibling agent communication, and non-participating supervisor auditing.
-
 ### `GatedFileReader`
 
 Handles file reading with size-aware boundaries, returning outlines or chunked line paginations.
@@ -265,89 +263,88 @@ reader = GatedFileReader(large_threshold_kb: int = 50, max_chunk: int = 100)
 * `read_file_tail(path: str, line_count: int = 50) -> str`
   * Reads and returns only the last `line_count` lines of a file, suitable for logs or continuous files.
 
----
+## `src.att`
 
-### `MessageBroker`
+This package coordinates dynamic recursively spawned Agent Teams (ATs) in a self-governing hierarchy, with P2P sibling communication gating, a 3-AI supervisory auditing system with recursive parent escalations, and safe ReAct tool execution.
 
-Coordinates message dispatch and routing between parent, child, and sibling peer nodes.
+### `Agent`
 
-**Constructor:**
+Represents an individual AI specialist equipped with role definitions and generator client integration.
 
-```python
-broker = MessageBroker()
-```
+* **Spawning Method**:
+  * `launch_att(manager: ATTManager, member_count: int = 3, roles_and_presets: Optional[List[Tuple[str, str]]] = None) -> AgentTeam`
+    Allows any active agent to recursively launch their own child ATT structure.
 
-**Methods:**
+### `AgentTeam`
 
-* `register_node(node: Any)`
-  * Registers an active `AgentNode` on the broker to enable addressing and routing.
-* `set_supervisor(supervisor: Any)`
-  * Registers the `SupervisorAgent` to audit all routed message traffic.
-* `send(sender: str, recipient: str, msg_type: str, payload: dict)`
-  * Routes a message from `sender` to `recipient`. If a supervisor is registered, routes the message to the supervisor for auditing first (except when the sender is the Supervisor itself, preventing infinite recursion).
+Represents a dynamic team of at least 3 agents ($N \ge 3$) executing discussions, debates, and tasks.
 
----
+* **Constructor**:
 
-### `AgentNode`
+  ```python
+  team = AgentTeam(team_id: str, creator: Any, members: List[Agent], preset_name: str = "generic", system_instructions: str = "")
+  ```
 
-Represents an active, self-aware agent in the hierarchical execution tree, capable of spawning child agents and running tasks inside a bounded ReAct reasoning loop.
+* **Methods**:
+  * `launch_att(manager: ATTManager, member_count: int = 3, roles_and_presets: Optional[List[Tuple[str, str]]] = None) -> AgentTeam`
+    Allows the active team recursively spawn a child team.
+  * `execute_react_step(agent: Agent, prompt: str, system_instruction: str, max_steps: int = 5) -> str`
+    Runs a robust Reasoning & Action (ReAct) loop, formatting active tools, parsing `Thought` / `Action: tool_name(args)` / `Observation` turns, and yielding a `Final Answer`. Handles safe literal evaluations for string arguments containing commas.
+  * `receive_message(message: Dict[str, Any])`
+    Appends incoming signals to the team's inbox queue.
 
-**Constructor:**
+### `ATTManager`
 
-```python
-node = AgentNode(
-    name: str,
-    role: str,
-    depth: int,
-    parent: Optional[AgentNode] = None,
-    max_depth: int = 2,
-    llm_client: Optional[Any] = None,
-    tools: Optional[Dict[str, Any]] = None,
-    broker: Optional[Any] = None
-)
-```
+Master orchestrator of the dynamic ATT topology.
 
-* `name`: Unique name of the node.
-* `role`: System role and behavior profile.
-* `depth`: Active spawning depth of this node.
-* `parent`: Reference to parent `AgentNode` or `None`.
-* `max_depth`: Hard limit on subagent spawning tree depth (default: 2).
-* `llm_client`: Generation client instance.
-* `tools`: Map of registered Python functions available for the agent's ReAct loop.
-* `broker`: MessageBroker instance.
+* **Constructor**:
 
-**Methods:**
+  ```python
+  manager = ATTManager(root_ai: Agent, critic_client: Any)
+  ```
 
-* `spawn_child(name: str, role: str, llm_client: Optional[Any] = None) -> AgentNode`
-  * Spawns a child node at `depth + 1`.
-  * If `depth >= max_depth`, blocks the spawn and dispatches a structured `delegate_escalation` message upward to its parent, throwing a `RuntimeError`.
-* `receive_message(message: dict)`
-  * Receives and appends a message payload to `self.message_inbox`.
-* `execute_task(task: str, max_steps: int = 5) -> str`
-  * Executes a task using a bounded ReAct reasoning loop.
-  * Injects a specialized runtime **Agent Identity Profile Header** to enforce prompt discipline.
-  * Alternates between `Thought: ...` reasoning and `Action: {"tool": "TOOL_NAME", "arguments": {...}}` execution until `Final Answer: ...` is returned or `max_steps` is exhausted.
+* **Methods**:
+  * `register_tools_context(context: Dict[str, Any])`
+    Registers system resources (DB, FAISS index, file readers) to automatically bind centralized tools to all teams.
+  * `create_agent_team(creator: Any, member_count: int = 3, roles_and_presets: Optional[List] = None, preset_name: str = "generic", system_instructions: str = "") -> AgentTeam`
+    Creates a new team of size $N \ge 3$, registers parent-child links, and binds tools.
+  * `execute_team_discussion(team: AgentTeam, prompt: str, rounds: int = 2) -> str`
+    Executes a multi-agent debate session, automatically injecting unresolved inbox alerts, and running supervisory integrity checks.
 
----
+### `NegotiationBroker`
 
-### `SupervisorAgent`
+Coordinates peer communications and rules.
 
-A non-participating observer agent that subscribes to all broker traffic, monitoring total token costs and analyzing debate transcripts for circular deadlocks.
+* **Methods**:
+  * `negotiate_communication(sender: AgentTeam, recipient: AgentTeam, mode: str = "proxied") -> bool`
+    Checks sibling rules on common parents or runs a simulated debate between different lineage parent teams to establish tunnels.
 
-**Constructor:**
+### `SupervisoryTeam`
 
-```python
-supervisor = SupervisorAgent(broker: Any, budget_limit_usd: float = 1.00)
-```
+A 3-AI supervisory committee checking dialogue logs for deadlocks/repetition.
 
-* `broker`: MessageBroker instance. Registers itself as the broker's active supervisor.
-* `budget_limit_usd`: Session token cost limit.
+* **Methods**:
+  * `audit_team_dialog(team: AgentTeam, transcript: str) -> Tuple[bool, str]`
+    Audits transcripts and yields structural health logs.
+  * `report_anomaly(failed_team: AgentTeam, reason: str, manager: ATTManager)`
+    Escalates failure alerts recursively up ancestors or to the Level 0 Root AI.
 
-**Methods:**
+### `DatabaseManagementCommittee`
 
-* `audit_message(sender: str, recipient: str, msg_type: str, payload: dict)`
-  * Audits messages passing through the broker.
-  * If cost exceeds `budget_limit_usd`, triggers an `EARLY_TERMINATION` command intervention.
-  * If a `debate_round_argument` message is received, analyzes debate texts over a sliding 3-turn window using word-overlap lexical similarity (> 75%). Triggers an `INTERJECT_PROMPT` command intervention on circular deadlock to force the Planner to synthesize a compromise.
-* `trigger_intervention(command: str, target: str, reason: str)`
-  * Sends an overriding supervisor intervention command (`INTERJECT_PROMPT`, `EARLY_TERMINATION`, `PRUNE_NODE`) to the target node via the broker.
+Audits SQL queries for transactions.
+
+* **Methods**:
+  * `audit_query(sql_command: str) -> Tuple[bool, str]`
+    Validates SQL command parameters against safety constraints.
+
+### `src.att.tools`
+
+Consolidates all system-wide AI-executable tools under a single factory `get_default_tools(context, caller_node)`:
+
+* `query_sqlite(sql_command: str) -> str`
+* `search_faiss(query_text: str, limit: int = 3) -> str`
+* `read_file_chunk(path: str, start_line: int, end_line: int) -> str`
+* `read_file_tail(path: str, line_count: int) -> str`
+* `dispatch_subagent(name: str, role: str, task: str) -> str`
+* `delegate_escalation(objective: str, rationale: str) -> str`
+* `set_sibling_talk(child_id: str, allow: bool) -> str` (authority verified sibling gating)
