@@ -106,6 +106,8 @@ CRITIC_CONFIG = _resolve_role_config("critic_model")
 SCANNER_CONFIG = _resolve_role_config("scanner_model")
 EMBEDDING_CONFIG = _resolve_role_config("embedding_model")
 
+MODEL_REGISTRY = resolved_models
+
 # Expose key variables for other parts of the application or tests
 # =============================
 # Paths / Project
@@ -145,8 +147,11 @@ ENABLE_AUTONOMY_SUITE = bool(_get("autonomy", "enable_autonomy_suite", False))
 ENABLE_AUTONOMOUS_QUERIES = bool(_get("autonomy", "enable_autonomous_queries", False))
 ENABLE_DYNAMIC_DELEGATION = bool(_get("autonomy", "enable_dynamic_delegation", False))
 MAX_DELEGATION_DEPTH = int(_get("autonomy", "max_delegation_depth", 2))
+MIN_SUBAGENT_TEAM_SIZE = int(_get("autonomy", "min_subagent_team_size", 3))
 MAX_SUBAGENT_TEAM_SIZE = int(_get("autonomy", "max_subagent_team_size", 3))
 SUBAGENT_DISCUSSION_ROUNDS = int(_get("autonomy", "subagent_discussion_rounds", 1))
+REACT_MAX_STEPS = int(_get("autonomy", "react_max_steps", 5))
+INBOX_SUMMARIZE_THRESHOLD_CHARS = int(_get("autonomy", "inbox_summarize_threshold_chars", 1500))
 LARGE_FILE_THRESHOLD_KB = int(_get("autonomy", "large_file_threshold_kb", 50))
 MAX_CHUNK_LINES = int(_get("autonomy", "max_chunk_lines", 100))
 ENABLE_BUDGET_MONITORING = bool(_get("autonomy", "enable_budget_monitoring", False))

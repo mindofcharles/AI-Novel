@@ -178,7 +178,7 @@ class TestATT(unittest.TestCase):
         
         # We mock execute_react_step to verify that prompt contains the inbox signal
         observed_prompt = ""
-        def mock_execute_react_step(agent, prompt, system_instructions):
+        def mock_execute_react_step(agent, prompt, system_instruction, max_steps=5, manager=None):
             nonlocal observed_prompt
             observed_prompt = prompt
             return "Mocked Answer"

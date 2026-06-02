@@ -3,11 +3,11 @@
 # ==========================================
 models:
   # Key references from config/ai_model_config.yaml
-  default_model: "local-AI"
-  architect_model: "local-AI"
-  planner_model: "local-AI"
-  writer_model: "local-AI"
-  critic_model: "local-AI"
+  default_model: "gemini"
+  architect_model: "gemini"
+  planner_model: "gemini"
+  writer_model: "gemini"
+  critic_model: "gemini"
   scanner_model: "local-AI"
   embedding_model: "emb"
 
@@ -58,8 +58,11 @@ autonomy:
   enable_autonomous_queries: True       # Global toggle for tool use loops
   enable_dynamic_delegation: True       # Global toggle for spawning subagents
   max_delegation_depth: 2               # Depth 0 (root) -> Depth 1 (child) -> Depth 2 (grandchild)
+  min_subagent_team_size: 3             # Minimum sibling team size required to spawn
   max_subagent_team_size: 5             # Max sibling team size
   subagent_discussion_rounds: 2         # Discussion rounds inside subagent panels
+  react_max_steps: 5                    # Max reasoning loop steps for an agent turn
+  inbox_summarize_threshold_chars: 1500 # Threshold to compress cascading inbox alerts
   large_file_threshold_kb: 50           # Files larger than this return outline warning
   max_chunk_lines: 200                  # Paginated lines per read request
   enable_budget_monitoring: True        # Toggle to enable/disable supervisor budget monitoring

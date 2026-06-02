@@ -91,22 +91,55 @@ def get_default_tools(context: Dict[str, Any], caller_node: Any) -> Dict[str, To
         except Exception as e:
             return f"Error reading file tail: {e}"
 
-    def dispatch_subagent(name: str, role: str, task: str) -> str:
-        """Spawns a recursive child AT under the ATT tree to execute a specialized task. Arguments: name (str), role (str), task (str)"""
+    def dispatch_subagent(task: str, team_purpose: str, member_count: int = 3, roles_and_models: Optional[Dict[str, str]] = None, system_instructions: str = "") -> str:
+        """Spawns a recursive child AT under the ATT tree to execute a specialized task. Arguments: task (str), team_purpose (str), member_count (int), roles_and_models (dict), system_instructions (str)"""
         if not getattr(config, "ENABLE_DYNAMIC_DELEGATION", False):
             return "Error: Dynamic Subagent Delegation is disabled in config."
         if not att_manager:
             return "Error: ATTManager not available in tools context."
         
+        from att.att_core import Agent, AgentTeam
+        actual_team = None
+        if isinstance(caller_node, AgentTeam):
+            actual_team = caller_node
+        elif isinstance(caller_node, Agent):
+            for team in att_manager.teams.values():
+                if caller_node in team.members:
+                    actual_team = team
+                    break
+        
+        current_depth = actual_team.depth if actual_team else 1
+        max_depth = getattr(config, "MAX_DELEGATION_DEPTH", 2)
+        if current_depth >= max_depth:
+            return f"Error: Cannot spawn child AT. Max delegation depth ({max_depth}) reached. You must use `delegate_escalation` to ask your parent for help."
+
         try:
-            from att.presets import get_preset
-            preset = get_preset("generic")
+            member_count = int(member_count)
+            min_size = getattr(config, 'MIN_SUBAGENT_TEAM_SIZE', 3)
+            if member_count < min_size:
+                return f"Error: A valid Agent Team MUST have at least {min_size} members. Please reconsider your team design and try again."
+        except ValueError:
+            return "Error: member_count must be an integer."
+        
+        try:
+            roles_and_presets = []
+            if roles_and_models:
+                for role_name, model_key in roles_and_models.items():
+                    # Dynamic allocation. (In future, bind specific client based on model_key)
+                    roles_and_presets.append((f"Dynamic_{role_name}", role_name))
+            else:
+                from att.presets import get_preset
+                preset = get_preset("generic")
+                roles_and_presets = preset["roles"]
+
             child_team = caller_node.launch_att(
                 manager=att_manager,
-                member_count=3,
-                roles_and_presets=preset["roles"]
+                member_count=member_count,
+                roles_and_presets=roles_and_presets,
+                system_instructions=system_instructions,
+                team_purpose=team_purpose
             )
-            return att_manager.execute_team_discussion(child_team, task, rounds=1)
+            return att_manager.execute_team_discussion(child_team, task, rounds=getattr(config, "SUBAGENT_DISCUSSION_ROUNDS", 2))
         except Exception as e:
             return f"Dispatch Subagent Team Error: {e}"
 
@@ -174,12 +207,59 @@ def get_default_tools(context: Dict[str, Any], caller_node: Any) -> Dict[str, To
         child.communication_rules["allow_sibling_talk"] = bool(allow)
         return f"Successfully set sibling talk for child team '{child_id}' to {allow}."
 
+    def update_team_purpose(new_purpose: str) -> str:
+        """Updates the purpose string of the caller's team. Arguments: new_purpose (str)"""
+        from att.att_core import Agent, AgentTeam
+        actual_team = None
+        if isinstance(caller_node, AgentTeam):
+            actual_team = caller_node
+        elif isinstance(caller_node, Agent):
+            for team in att_manager.teams.values():
+                if caller_node in team.members:
+                    actual_team = team
+                    break
+        if not actual_team:
+            return "Error: Could not resolve the active AgentTeam."
+        
+        old_purpose = actual_team.team_purpose
+        actual_team.team_purpose = new_purpose
+        return f"Successfully updated team purpose from '{old_purpose}' to '{new_purpose}'."
+
+    def send_peer_message(team_id: str, message: str) -> str:
+        """Sends a message to the inbox of a peer team using their Team ID. Arguments: team_id (str), message (str)"""
+        if not att_manager:
+            return "Error: ATTManager not available."
+        if team_id not in att_manager.teams:
+            return f"Error: Team '{team_id}' not found."
+            
+        target = att_manager.teams[team_id]
+        
+        from att.att_core import Agent, AgentTeam
+        actual_team = None
+        if isinstance(caller_node, AgentTeam):
+            actual_team = caller_node
+        elif isinstance(caller_node, Agent):
+            for team in att_manager.teams.values():
+                if caller_node in team.members:
+                    actual_team = team
+                    break
+                    
+        sender_id = actual_team.team_id if actual_team else "Unknown"
+        target.receive_message({
+            "type": "peer_message",
+            "from": sender_id,
+            "objective": message
+        })
+        return f"Message successfully delivered to team '{team_id}'."
+
     return {
         "query_sqlite": Tool("query_sqlite", "Queries the SQLite database directly with sql_command (str).", query_sqlite),
         "search_faiss": Tool("search_faiss", "Performs semantic vector search on FAISS indices using query_text (str) and limit (int).", search_faiss),
         "read_file_chunk": Tool("read_file_chunk", "Reads a specific paginated chunk of a file using path (str), start_line (int), and optionally end_line (int).", read_file_chunk),
         "read_file_tail": Tool("read_file_tail", "Reads the last line_count (int) lines of a file using path (str).", read_file_tail),
-        "dispatch_subagent": Tool("dispatch_subagent", "Spawns a recursive child AT under the ATT tree to execute a specialized task with name (str), role (str), task (str).", dispatch_subagent),
+        "dispatch_subagent": Tool("dispatch_subagent", "Spawns a child AT. Arguments: task (str), team_purpose (str), member_count (int), roles_and_models (dict), system_instructions (str).", dispatch_subagent),
         "delegate_escalation": Tool("delegate_escalation", "Escalates objective upward in the ATT lineage tree with objective (str) and rationale (str).", delegate_escalation),
-        "set_sibling_talk": Tool("set_sibling_talk", "Allows parent teams to dynamically set sibling communication permission for their child team. Arguments: child_id (str), allow (bool).", set_sibling_talk)
+        "set_sibling_talk": Tool("set_sibling_talk", "Allows parent teams to dynamically set sibling communication permission for their child team. Arguments: child_id (str), allow (bool).", set_sibling_talk),
+        "update_team_purpose": Tool("update_team_purpose", "Updates the purpose string of the caller's team. Arguments: new_purpose (str)", update_team_purpose),
+        "send_peer_message": Tool("send_peer_message", "Sends a message to a peer team's inbox using their Team ID. Arguments: team_id (str), message (str)", send_peer_message)
     }

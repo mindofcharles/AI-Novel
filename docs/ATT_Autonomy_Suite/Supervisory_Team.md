@@ -31,42 +31,33 @@ The Supervisory Team produces a strict JSON health evaluation:
 }
 ```
 
-## 3. Recursive Parent Escalation Channel
+## 3. Asynchronous Parent Escalation Channel
 
-If the dialogue audit results in `is_healthy = False` (indicating a deadlock or severe logic violation), the Supervisory Team triggers the **Recursive Parent Escalation Protocol**:
+If the dialogue audit results in `is_healthy = False` (indicating a deadlock or severe logic violation), the Supervisory Team triggers the **Asynchronous Escalation Protocol**:
 
 ```plaintext
                    ┌───────────────────────────────┐
                    │    Failed Child Team (AT)     │
                    └───────────────┬───────────────┘
+                                   │ (Supervisory Audit Fails)
+                                   ▼
+                   ┌───────────────────────────────┐
+                   │ Dispatch Alert to Direct      │
+                   │ Parent's Message Inbox        │
+                   └───────────────┬───────────────┘
                                    │
                                    ▼
                    ┌───────────────────────────────┐
-                   │    Audit Parent Team (AT)     │
-                   └───────────────┬───────────────┘
-                                   │
-                  ┌────────────────┴────────────────┐
-                  ▼                                 ▼
-            [Parent Healthy]                [Parent Broken]
-                  │                                 │
-                  ▼                                 ▼
-        ┌──────────────────┐              ┌──────────────────┐
-        │ Route Failure    │              │ Climb Higher     │
-        │ Alert to Parent  │              │ (Escalate up DB) │
-        │ Inbox Context    │              └─────────┬────────┘
-        └──────────────────┘                        │
-                                                    ▼
-                                          ┌──────────────────┐
-                                          │ Collapse? Route  │
-                                          │ to Root AI (L0)  │
-                                          └──────────────────┘
+                   │ Audit Parent Team (AT)        │
+                   │ consumes alert in its next    │
+                   │ discussion turn autonomously  │
+                   └───────────────────────────────┘
 ```
 
-1. **Climb up the lineage**: The Supervisor resolves the parent team of the failed team.
-2. **Audit parent state**: The Supervisor audits the parent team itself.
-   * If the parent team is **healthy**, the failure alert (with original anomaly reason and child team ID) is routed directly into the parent team's `message_inbox`. The parent team will consume this context in its next discussion turn and resolve the child deadlock.
-   * If the parent team is **also broken**, the Supervisor logs the failure, logs the parent ID, and climbs one level higher up the ancestry tree.
-3. **Lineage Collapse Gating**: If the ancestry tree is traversed up to the root and all ancestors are found to be broken, the Supervisor flags a **Lineage Collapse** and escalates a critical system alert directly to the **Level 0 Root AI** (raising a runtime notification).
+1. **Direct Escalation**: The Supervisor resolves the direct parent team of the failed team.
+2. **Asynchronous Routing**: The Supervisor dispatches a failure alert (containing the anomaly reason and child team ID) directly into the parent team's `message_inbox`. It returns immediately, preventing synchronous blocking loops that cause API timeouts.
+3. **Context Consumption**: The parent team will consume this context in its next discussion turn, automatically summarizing the inbox if the cascade of errors exceeds the `inbox_summarize_threshold_chars` threshold.
+4. **Fallback Gating**: If no parent exists in the lineage tree, the Supervisor escalates a critical system alert directly to the **Level 0 Root AI**.
 
 ## 4. Configuration & Usage
 

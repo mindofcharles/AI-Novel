@@ -3,6 +3,7 @@ import logging
 import time
 import json
 from typing import List, Dict, Optional, Any, Tuple
+import config
 
 class Agent:
     def __init__(self, name: str, role: str, llm_client: Optional[Any] = None):
@@ -10,32 +11,25 @@ class Agent:
         self.role = role
         self.llm_client = llm_client
 
-    def launch_att(self, manager: 'ATTManager', member_count: int = 3, roles_and_presets: Optional[List[Tuple[str, str]]] = None) -> 'AgentTeam':
-        """Allows any active agent to recursively launch their own ATT structure (a child AT)."""
-        return manager.create_agent_team(creator=self, member_count=member_count, roles_and_presets=roles_and_presets)
+    def launch_att(self, manager: 'ATTManager', member_count: int = 3, roles_and_presets: Optional[List[Tuple[str, str]]] = None, system_instructions: str = "", team_purpose: str = "Unspecified team purpose") -> 'AgentTeam':
+        """Allows this agent to launch a dynamic sub-team (Level 2+)."""
+        return manager.create_agent_team(creator=self, member_count=member_count, roles_and_presets=roles_and_presets, system_instructions=system_instructions, team_purpose=team_purpose)
 
 
 class AgentTeam:
-    def __init__(
-        self, 
-        team_id: str, 
-        creator: Any, 
-        members: List[Agent], 
-        preset_name: str = "generic",
-        system_instructions: str = ""
-    ):
-        self.team_id = team_id
-        self.creator = creator  # Can be an Agent or another AgentTeam (Parent)
-        self.members = members
+    def __init__(self, creator: Any, preset_name: str, team_purpose: str = "Unspecified team purpose"):
+        self.team_id = f"AT-{uuid.uuid4().hex[:6]}"
+        self.creator = creator
         self.preset_name = preset_name
-        self.system_instructions = system_instructions
+        self.team_purpose = team_purpose
+        self.members: List[Agent] = []
         
         self.child_teams: List['AgentTeam'] = []
         self.communication_rules: Dict[str, Any] = {
             "allow_sibling_talk": False,
             "rules": []
         }
-        self.logger = logging.getLogger(f"AgentTeam:{team_id}")
+        self.logger = logging.getLogger(f"AgentTeam:{self.team_id}")
         self.message_inbox: List[Dict[str, Any]] = []
         self.tools: Dict[str, Any] = {}
 
@@ -48,28 +42,52 @@ class AgentTeam:
             return None
         return None
 
+    @property
+    def depth(self) -> int:
+        parent = self.parent_team
+        return (parent.depth + 1) if parent else 1
+
     def add_child_team(self, child: 'AgentTeam'):
         self.child_teams.append(child)
 
-    def launch_att(self, manager: 'ATTManager', member_count: int = 3, roles_and_presets: Optional[List[Tuple[str, str]]] = None) -> 'AgentTeam':
+    def launch_att(self, manager: 'ATTManager', member_count: int = 3, roles_and_presets: Optional[List[Tuple[str, str]]] = None, system_instructions: str = "", team_purpose: str = "Unspecified team purpose") -> 'AgentTeam':
         """Allows any active team to recursively launch their own child AT."""
-        return manager.create_agent_team(creator=self, member_count=member_count, roles_and_presets=roles_and_presets)
+        return manager.create_agent_team(creator=self, member_count=member_count, roles_and_presets=roles_and_presets, system_instructions=system_instructions, team_purpose=team_purpose)
 
     def receive_message(self, message: Dict[str, Any]):
         self.message_inbox.append(message)
         self.logger.info(f"Team {self.team_id} received message of type '{message.get('type')}' from '{message.get('from')}'")
 
-    def execute_react_step(self, agent: Agent, prompt: str, system_instruction: str, max_steps: int = 5) -> str:
+    def execute_react_step(self, agent: Agent, prompt: str, system_instruction: str, max_steps: int = 5, manager: Optional['ATTManager'] = None) -> str:
         """Executes a ReAct loop for a single agent inside the AT."""
         if not agent.llm_client:
             return "Error: Agent has no LLM client configured."
 
+        peer_context = ""
+        if manager:
+            peer_lines = []
+            for tid, t in manager.teams.items():
+                if tid != self.team_id:
+                    peer_lines.append(f"  - {tid} (Purpose: {t.team_purpose})")
+            if peer_lines:
+                peer_context = f"\n### ACTIVE PEER TEAMS (Global Registry)\n" + "\n".join(peer_lines) + "\n"
+
+        model_options = "\n".join([f"  - {k}: {v.get('ai_note', 'No description')}" for k, v in config.MODEL_REGISTRY.items()])
         identity_header = (
             f"## AGENT IDENTITY PROFILE\n"
             f"- **Role Name**: {agent.role}\n"
             f"- **Agent Name**: {agent.name}\n"
             f"- **Parent Team**: {self.team_id} (Preset: {self.preset_name})\n"
+            f"- **Team Purpose**: {self.team_purpose}\n"
             f"- **Current Objective**: Cooperate in team tasks.\n"
+            f"- **AT Delegation Depth**: {self.depth} / {config.MAX_DELEGATION_DEPTH}\n"
+            f"{peer_context}"
+            f"### AUTONOMY RULES\n"
+            f"1. You can dynamically spawn child ATs using the `dispatch_subagent` tool to solve sub-problems.\n"
+            f"2. You MUST NOT spawn child ATs if your Delegation Depth is already at the maximum ({config.MAX_DELEGATION_DEPTH}). If you need help at max depth, use `delegate_escalation` to ask your parent.\n"
+            f"3. A valid AT MUST have at least {getattr(config, 'MIN_SUBAGENT_TEAM_SIZE', 3)} members.\n"
+            f"4. When creating an AT, you can assign models based on task complexity. Available models:\n"
+            f"{model_options}\n"
         )
 
         # Check if we have active tools to formulate the ReAct system prompt
@@ -304,38 +322,29 @@ class SupervisoryTeam:
 
     def report_anomaly(self, failed_team: AgentTeam, reason: str, manager: 'ATTManager'):
         """
-        Escalates anomaly up the lineage tree until a healthy parent is found.
-        If all ancestors fail, reports directly to the root AI (Level 0).
+        Escalates anomaly up the lineage tree by reporting to the direct parent.
+        If the parent is not found, escalates directly to the root AI (Level 0).
         """
         self.logger.error(f"[SUPERVISOR ALERT] Anomaly detected in team {failed_team.team_id}: {reason}")
         
         current_parent = failed_team.parent_team or manager.find_parent_team(failed_team)
-        failed_lineage = [failed_team]
         
-        while current_parent is not None:
-            # Audit the parent itself
-            is_healthy, parent_reason = self.audit_team_dialog(current_parent, "Audit check during escalation")
-            if is_healthy:
-                self.logger.info(f"[SUPERVISOR] Parent team {current_parent.team_id} is healthy. Reporting failure of child {failed_team.team_id} to parent.")
-                # Route the alert to the parent team inbox
-                current_parent.receive_message({
-                    "type": "child_failure_escalation",
-                    "from": "Supervisor",
-                    "failed_team_id": failed_team.team_id,
-                    "reason": reason
-                })
-                return
-            else:
-                self.logger.warning(f"[SUPERVISOR] Parent team {current_parent.team_id} is ALSO broken: {parent_reason}. Climbing higher...")
-                failed_lineage.append(current_parent)
-                current_parent = current_parent.parent_team or manager.find_parent_team(current_parent)
-
-        # All ancestors are broken: escalate directly to the root AI (Level 0)
-        self.logger.critical("[SUPERVISOR CRITICAL] Lineage collapse! Escalating directly to Root AI Level 0.")
+        if current_parent is not None:
+            self.logger.info(f"[SUPERVISOR] Escalating failure of child {failed_team.team_id} to parent team {current_parent.team_id}.")
+            # Route the alert to the parent team inbox
+            current_parent.receive_message({
+                "type": "child_failure_escalation",
+                "from": "Supervisor",
+                "failed_team_id": failed_team.team_id,
+                "reason": reason
+            })
+            return
+            
+        # No parent found: escalate directly to the root AI (Level 0)
+        self.logger.critical("[SUPERVISOR CRITICAL] Root-level failure or lineage collapse! Escalating directly to Root AI Level 0.")
         if self.root_ai.llm_client:
             alert_msg = (
-                f"CRITICAL SYSTEM FAILURE: Anomaly in child team lineage.\n"
-                f"Failed teams: {[t.team_id for t in failed_lineage]}\n"
+                f"CRITICAL SYSTEM FAILURE: Anomaly in team {failed_team.team_id}.\n"
                 f"Original anomaly reason: {reason}"
             )
             # In an actual system, we can inject this alert into the main prompt or log it
@@ -361,18 +370,15 @@ class ATTManager:
         for team in self.teams.values():
             team.tools = get_default_tools(self.tools_context, team)
 
-    def create_agent_team(
-        self, 
-        creator: Any, 
-        member_count: int = 3,
-        roles_and_presets: Optional[List[Tuple[str, str]]] = None,
-        preset_name: str = "generic",
-        system_instructions: str = ""
-    ) -> AgentTeam:
-        """Spawns a new AT, enforcing size >= 3."""
-        assert member_count >= 3, f"An Agent Team (AT) must contain at least 3 members (got {member_count})."
+    def create_agent_team(self, creator: Any, member_count: int = 3, roles_and_presets: List[Tuple[str, str]] = None, preset_name: str = "custom", system_instructions: str = "", team_purpose: str = "Unspecified team purpose") -> AgentTeam:
+        """
+        Dynamically spawns a new recursive Agent Team (AT).
+        Enforces minimum team size logic.
+        """
+        min_size = getattr(config, 'MIN_SUBAGENT_TEAM_SIZE', 3)
+        assert member_count >= min_size, f"An Agent Team must contain at least {min_size} members to debate properly."
         
-        team_id = f"AT-{uuid.uuid4().hex[:6]}"
+        team = AgentTeam(creator=creator, preset_name=preset_name, team_purpose=team_purpose)
         members = []
         
         if roles_and_presets:
@@ -381,28 +387,23 @@ class ATTManager:
         else:
             # Fallback default members
             for i in range(member_count):
-                members.append(Agent(name=f"{team_id}_member_{i+1}", role="Specialist", llm_client=self.critic_client))
+                members.append(Agent(name=f"{team.team_id}_member_{i+1}", role="Specialist", llm_client=self.critic_client))
 
-        team = AgentTeam(
-            team_id=team_id,
-            creator=creator,
-            members=members,
-            preset_name=preset_name,
-            system_instructions=system_instructions
-        )
+        team.members = members
+        team.system_instructions = system_instructions
         
         # Bind tools from context if registered
         from att.tools import get_default_tools
         if hasattr(self, "tools_context") and self.tools_context:
             team.tools = get_default_tools(self.tools_context, team)
             
-        self.teams[team_id] = team
+        self.teams[team.team_id] = team
         
         # If creator is another team, register it as child
         if isinstance(creator, AgentTeam):
             creator.add_child_team(team)
             
-        self.logger.info(f"Successfully spawned Agent Team {team_id} (N={len(members)}, Preset: {preset_name}) spawned by {creator.name if hasattr(creator, 'name') else creator.team_id}")
+        self.logger.info(f"Successfully spawned Agent Team {team.team_id} (N={len(members)}, Preset: {preset_name}) spawned by {creator.name if hasattr(creator, 'name') else creator.team_id}")
         return team
 
     def find_parent_team(self, target: AgentTeam) -> Optional[AgentTeam]:
@@ -429,10 +430,21 @@ class ATTManager:
             inbox_lines = []
             for msg in team.message_inbox:
                 inbox_lines.append(f"- **From [{msg.get('from', 'Unknown')}]**: {msg.get('reason') or msg.get('objective') or str(msg)}")
+            
+            raw_inbox_text = chr(10).join(inbox_lines)
+            threshold = getattr(config, "INBOX_SUMMARIZE_THRESHOLD_CHARS", 1500)
+            if len(raw_inbox_text) > threshold and self.critic_client:
+                self.logger.info("Inbox context too large, summarizing before injection...")
+                summary_prompt = f"Summarize the following system alerts and escalations concisely:\n\n{raw_inbox_text}"
+                try:
+                    raw_inbox_text = self.critic_client.generate(summary_prompt, system_instruction="You are a strict system summarizer. Compress alerts while keeping critical facts and failures.", temperature=0.1)
+                except Exception as e:
+                    self.logger.warning(f"Failed to summarize inbox: {e}")
+                    
             inbox_context = (
                 f"\n\n### UNRESOLVED INBOX ALERTS & ESCALATIONS\n"
                 f"Your team has received the following signals from your descendants or supervisor:\n"
-                f"{chr(10).join(inbox_lines)}\n"
+                f"{raw_inbox_text}\n"
                 f"Please address or incorporate these alerts into your decision-making."
             )
             # Clear processed messages
@@ -443,14 +455,15 @@ class ATTManager:
         
         for r in range(1, rounds + 1):
             for agent in team.members:
-                agent_prompt = (
-                    f"Task: {full_prompt}\n\n"
-                    f"--- Discussion History ---\n"
-                    f"{chr(10).join(dialog_history) if dialog_history else '(None)'}\n\n"
-                    f"Your Turn (Speak in your role. Keep it concise):"
+                self.logger.info(f"Agent {agent.name} thinking...")
+                final_answer = team.execute_react_step(
+                    agent=agent, 
+                    prompt=full_prompt, 
+                    system_instruction=team.system_instructions,
+                    max_steps=getattr(config, "REACT_MAX_STEPS", 5),
+                    manager=self
                 )
-                response = team.execute_react_step(agent, agent_prompt, team.system_instructions)
-                dialog_history.append(f"[{agent.role} - {agent.name}]: {response}")
+                dialog_history.append(f"{agent.name}: {final_answer}")
 
         transcript = "\n".join(dialog_history)
         
