@@ -27,7 +27,6 @@ Any resolved issues should not be stored in this document.
 9. `MAX_DELEGATION_DEPTH` is defined in config but not enforced in ATT creation/dispatch, risking infinite recursion or unbounded AT spawning.
 10. `SupervisoryTeam.report_anomaly` escalates linearly and synchronously through all parents, causing severe latency and potential API rate-limit bottlenecks at high delegation depths.
 11. `ENABLE_BUDGET_MONITORING` and related token limits are defined in config but lack actual implementation in LLM clients, offering no cost circuit breakers.
-12. Multi-level AT escalation cascades raw inbox messages up the hierarchy without summarization, rapidly causing Context Window Saturation for upper-level teams.
 
 ## Future Plans
 

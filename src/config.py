@@ -77,6 +77,7 @@ for key, model_info in _model_registry.items():
     model_name = str(model_info.get("model_name", "")).strip()
     if not model_name:
         model_name = key
+    ai_note = str(model_info.get("ai_note", "No description")).strip()
 
     resolved_api_key = _resolve_config_field(raw_api_key, "api_key", api_type)
     resolved_base_url = _resolve_config_field(raw_base_url, "base_url", api_type)
@@ -87,6 +88,7 @@ for key, model_info in _model_registry.items():
         "api_key": resolved_api_key,
         "base_url": resolved_base_url,
         "model_name": model_name,
+        "ai_note": ai_note,
     }
 
 # 5. Resolve configured roles

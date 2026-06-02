@@ -13,6 +13,7 @@ gemini:
   api_key: "${GEMINI_API_KEY}"
   base_url: "https://generativelanguage.googleapis.com/"
   model_name: "gemini-3.5-flash"
+  ai_note: "gemini-3.5-flash - A very impressive large model"
 
 # OpenAI-compatible LLM configuration template
 gpt-5.5:
@@ -20,7 +21,8 @@ gpt-5.5:
   api_type: "openai"
   api_key: "${OPENAI_API_KEY}"
   base_url: "https://api.openai.com/v1"
-  model_name: "local-model"
+  model_name: "gpt-5.5"
+  ai_note: "gpt-5.5 - A very impressive large model"
 
 # Embedding model configuration template
 emb:
@@ -38,3 +40,20 @@ local-AI:
   base_url: "http://localhost:----/v1"
   api_key: ""
   model_name: ""
+  ai_note: "A local model with very small parameters is suitable for simple tasks."
+
+gemma4-26b:
+  model_type: "llm"
+  api_type: "gemini"
+  api_key: "${GEMINI_API_KEY}"
+  base_url: "https://generativelanguage.googleapis.com/"
+  model_name: "gemma-4-26b-a4b-it"
+  ai_note: "gemma-4-26b-a4b - The 26b open-source model is quite powerful and suitable for more complex tasks."
+
+gemini-3.1-flash-lite:
+  model_type: "llm"
+  api_type: "gemini"
+  api_key: "${GEMINI_API_KEY}"
+  base_url: "https://generativelanguage.googleapis.com/"
+  model_name: "gemini-3.1-flash-lite"
+  ai_note: "gemini-3.1-flash-lite - It's a standard Gemini model, but still better than Gemma4."
