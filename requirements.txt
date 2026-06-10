@@ -7,3 +7,4 @@ openai
 PyYAML
 Typer
 Rich
+git+https://github.com/AI-Team-Team/AI-Team-Team.git@main

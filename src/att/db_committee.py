@@ -1,13 +1,12 @@
 import logging
 import json
 from typing import Tuple, Dict, Any, Optional
-from att.att_core import ATTManager
-from att.presets import get_preset
+from ai_team_team import ATTManager
 
 class DatabaseManagementCommittee:
     def __init__(self, att_manager: ATTManager):
         self.manager = att_manager
-        self.preset = get_preset("database_management")
+        self.preset = att_manager.get_preset("database_management")
         self.logger = logging.getLogger("DatabaseManagementCommittee")
 
     def audit_query(self, sql_command: str) -> Tuple[bool, str]:

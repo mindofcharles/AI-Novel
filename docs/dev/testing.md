@@ -39,8 +39,6 @@ The `test/` directory contains standard test suites covering every layer of the 
 | `test_init_seed.py` | System Seeding | Setup and generation of early seed plot outlines, world bibles, and compact archives. |
 | `test_full_system.py` | System Simulation | End-to-end workspace flow and integration validations. |
 | `test_embedding_validation.py`| Vector Embeddings | Vector boundaries, dimension constraints, FAISS indexing, and semantic search. |
-| `test_ai_autonomy_delegation.py`| Autonomy Gating | Validates `GatedFileReader` warning thresholds, tail scans, and pagination chunks. |
-| `test_att.py` | ATT Multi-Agent Core | Creation of Agent Teams, sibling communication permission broker, and Supervisory Team audits. |
 | `test_ai_debate_conflict_resolver.py` | Dynamic Debate Gating | Resolving narrative character contradictions and rule collisions in bounded debates. |
 | `test_regressions.py` | Comprehensive Integration | Intent gates, rollback, database commits, language security, and structural rollbacks. |
 

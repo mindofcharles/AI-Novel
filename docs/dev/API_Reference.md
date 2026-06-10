@@ -267,84 +267,20 @@ reader = GatedFileReader(large_threshold_kb: int = 50, max_chunk: int = 100)
 
 This package coordinates dynamic recursively spawned Agent Teams (ATs) in a self-governing hierarchy, with P2P sibling communication gating, a 3-AI supervisory auditing system with recursive parent escalations, and safe ReAct tool execution.
 
-### `Agent`
-
-Represents an individual AI specialist equipped with role definitions and generator client integration.
-
-* **Spawning Method**:
-  * `launch_att(manager: ATTManager, member_count: int = 3, roles_and_presets: Optional[List[Tuple[str, str]]] = None) -> AgentTeam`
-    Allows any active agent to recursively launch their own child ATT structure.
-
-### `AgentTeam`
-
-Represents a dynamic team of at least 3 agents ($N \ge 3$) executing discussions, debates, and tasks.
-
-* **Constructor**:
-
-  ```python
-  team = AgentTeam(team_id: str, creator: Any, members: List[Agent], preset_name: str = "generic", system_instructions: str = "")
-  ```
-
-* **Methods**:
-  * `launch_att(manager: ATTManager, member_count: int = 3, roles_and_presets: Optional[List[Tuple[str, str]]] = None) -> AgentTeam`
-    Allows the active team recursively spawn a child team.
-  * `execute_react_step(agent: Agent, prompt: str, system_instruction: str, max_steps: int = 5) -> str`
-    Runs a robust Reasoning & Action (ReAct) loop, formatting active tools, parsing `Thought` / `Action: tool_name(args)` / `Observation` turns, and yielding a `Final Answer`. Handles safe literal evaluations for string arguments containing commas.
-  * `receive_message(message: Dict[str, Any])`
-    Appends incoming signals to the team's inbox queue.
-
-### `ATTManager`
-
-Master orchestrator of the dynamic ATT topology.
-
-* **Constructor**:
-
-  ```python
-  manager = ATTManager(root_ai: Agent, critic_client: Any)
-  ```
-
-* **Methods**:
-  * `register_tools_context(context: Dict[str, Any])`
-    Registers system resources (DB, FAISS index, file readers) to automatically bind centralized tools to all teams.
-  * `create_agent_team(creator: Any, member_count: int = 3, roles_and_presets: Optional[List] = None, preset_name: str = "generic", system_instructions: str = "") -> AgentTeam`
-    Creates a new team of size $N \ge 3$, registers parent-child links, and binds tools.
-  * `execute_team_discussion(team: AgentTeam, prompt: str, rounds: int = 2) -> str`
-    Executes a multi-agent debate session, automatically injecting unresolved inbox alerts, and running supervisory integrity checks.
-
-### `NegotiationBroker`
-
-Coordinates peer communications and rules.
-
-* **Methods**:
-  * `negotiate_communication(sender: AgentTeam, recipient: AgentTeam, mode: str = "proxied") -> bool`
-    Checks sibling rules on common parents or runs a simulated debate between different lineage parent teams to establish tunnels.
-
-### `SupervisoryTeam`
-
-A 3-AI supervisory committee checking dialogue logs for deadlocks/repetition.
-
-* **Methods**:
-  * `audit_team_dialog(team: AgentTeam, transcript: str) -> Tuple[bool, str]`
-    Audits transcripts and yields structural health logs.
-  * `report_anomaly(failed_team: AgentTeam, reason: str, manager: ATTManager)`
-    Escalates failure alerts recursively up ancestors or to the Level 0 Root AI.
+## `src.att.db_committee`
 
 ### `DatabaseManagementCommittee`
 
 Audits SQL queries for transactions.
 
+* **Constructor**:
+
+  ```python
+  dmc = DatabaseManagementCommittee(att_manager: ATTManager)
+  ```
+
 * **Methods**:
   * `audit_query(sql_command: str) -> Tuple[bool, str]`
-    Validates SQL command parameters against safety constraints.
-
-### `src.att.tools`
-
-Consolidates all system-wide AI-executable tools under a single factory `get_default_tools(context, caller_node)`:
-
-* `query_sqlite(sql_command: str) -> str`
-* `search_faiss(query_text: str, limit: int = 3) -> str`
-* `read_file_chunk(path: str, start_line: int, end_line: int) -> str`
-* `read_file_tail(path: str, line_count: int) -> str`
-* `dispatch_subagent(name: str, role: str, task: str) -> str`
-* `delegate_escalation(objective: str, rationale: str) -> str`
-* `set_sibling_talk(child_id: str, allow: bool) -> str` (authority verified sibling gating)
+    Validates SQLite queries against safety and integrity guidelines.
+  * `audit_batch_transaction(data: Dict[str, Any], chapter_num: Optional[int]) -> Tuple[bool, str]`
+    Audits complete batch updates before DB serialization.

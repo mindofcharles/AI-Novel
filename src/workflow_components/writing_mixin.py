@@ -44,8 +44,7 @@ class WritingWorkflowMixin:
         rounds = max(0, config.CHAPTER_TEXT_DISCUSSION_ROUNDS)
         self.logger.info(f"Spawning Chapter Editorial Committee to review and revise Ch {chapter_num}...")
         
-        from att.presets import get_preset
-        preset = get_preset("editorial")
+        preset = self.att_manager.get_preset("editorial")
         
         team = self.att_manager.create_agent_team(
             creator=self.att_manager.root_ai,

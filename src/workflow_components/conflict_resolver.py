@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Optional, List
 
 import config
-from att.presets import get_preset
+
 
 class ConflictResolverWorkflowMixin:
     """Mixin implementing the ATT-driven Conflict Resolution Committee."""
@@ -56,7 +56,7 @@ class ConflictResolverWorkflowMixin:
         )
 
         # 2. Dynamic AT Spawning via ATT
-        preset = get_preset("conflict_resolution")
+        preset = self.att_manager.get_preset("conflict_resolution")
         team = self.att_manager.create_agent_team(
             creator=self.att_manager.root_ai,
             member_count=3,

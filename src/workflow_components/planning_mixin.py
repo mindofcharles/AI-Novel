@@ -11,8 +11,7 @@ class PlanningWorkflowMixin:
         rounds = max(0, config.CHAPTER_GUIDE_DISCUSSION_ROUNDS)
         self.logger.info(f"Spawning Chapter Planning Committee to refine guide for Ch {chapter_num}...")
         
-        from att.presets import get_preset
-        preset = get_preset("planning")
+        preset = self.att_manager.get_preset("planning")
         
         team = self.att_manager.create_agent_team(
             creator=self.att_manager.root_ai,

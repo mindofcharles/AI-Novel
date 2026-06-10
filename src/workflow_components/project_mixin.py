@@ -19,8 +19,7 @@ class ProjectWorkflowMixin:
     ) -> str:
         self.logger.info(f"Spawning Plot Outline Committee for phase: {phase_name}...")
         
-        from att.presets import get_preset
-        preset = get_preset("plot_outline")
+        preset = self.att_manager.get_preset("plot_outline")
         
         team = self.att_manager.create_agent_team(
             creator=self.att_manager.root_ai,
@@ -113,8 +112,7 @@ class ProjectWorkflowMixin:
         rounds = max(0, config.WORLD_DISCUSSION_ROUNDS)
         self.logger.info("Spawning World Bible Committee to refine World Bible...")
         
-        from att.presets import get_preset
-        preset = get_preset("world_bible")
+        preset = self.att_manager.get_preset("world_bible")
         
         team = self.att_manager.create_agent_team(
             creator=self.att_manager.root_ai,
